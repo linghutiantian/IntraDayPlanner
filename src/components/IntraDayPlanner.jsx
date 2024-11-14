@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Trash2, Palette } from 'lucide-react';
 
 const IntraDayPlanner = () => {
-  const timeSlots = Array.from({ length: 21 }, (_, i) => {
-    const totalMinutes = (i * 30) + (8 * 60);
+  const timeSlots = Array.from({ length: 20 }, (_, i) => {
+    const totalMinutes = i * 30 + (8 * 60); // Start from 8:00 AM
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
     return `${hours === 12 ? 12 : hours % 12}:${minutes.toString().padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
@@ -57,10 +57,11 @@ const IntraDayPlanner = () => {
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const totalMinutes = hours * 60 + minutes;
-    const startMinutes = 8 * 60;
-    const endMinutes = 18 * 60;
-    const position = Math.floor(((totalMinutes - startMinutes) / (endMinutes - startMinutes)) * 630);
-    return Math.min(Math.max(0, position), 630);
+    const startMinutes = 8 * 60; // 8 AM
+    const endMinutes = 18 * 60; // 6 PM
+    
+    const percentage = ((totalMinutes - startMinutes) / (endMinutes - startMinutes)) * 100;
+    return Math.min(Math.max(0, percentage), 100);
   };
 
   const handleMouseDown = (e, timeSlot, column) => {
@@ -70,7 +71,7 @@ const IntraDayPlanner = () => {
     const relativeY = e.clientY - gridRect.top;
     const slotIndex = Math.floor(relativeY / 30);
     
-    if (slotIndex >= 0 && slotIndex < timeSlots.length) {
+    if (slotIndex > 0 && slotIndex < timeSlots.length) {
       setIsDragging(true);
       setDragStart(timeSlots[slotIndex]);
       setCurrentColumn(column);
@@ -164,27 +165,26 @@ const IntraDayPlanner = () => {
       const startIndex = timeSlots.indexOf(tempEvent.start);
       const endIndex = timeSlots.indexOf(tempEvent.end);
       
-      if (startIndex !== endIndex) {
-        const hasOverlap = events[tempEvent.column].some(event => {
-          const eventStart = timeSlots.indexOf(event.start);
-          const eventEnd = timeSlots.indexOf(event.end);
-          return (startIndex <= eventEnd && endIndex >= eventStart);
-        });
+      // Allow creation of 30-minute events (when start equals end)
+      const hasOverlap = events[tempEvent.column].some(event => {
+        const eventStart = timeSlots.indexOf(event.start);
+        const eventEnd = timeSlots.indexOf(event.end);
+        return (startIndex <= eventEnd && endIndex >= eventStart);
+      });
 
-        if (!hasOverlap) {
-          const newEvent = {
-            id: Date.now(),
-            start: tempEvent.start,
-            end: tempEvent.end,
-            content: '',
-            colorIndex: 0
-          };
+      if (!hasOverlap) {
+        const newEvent = {
+          id: Date.now(),
+          start: tempEvent.start,
+          end: tempEvent.end,
+          content: '',
+          colorIndex: 0
+        };
 
-          setEvents(prev => ({
-            ...prev,
-            [tempEvent.column]: [...prev[tempEvent.column], newEvent]
-          }));
-        }
+        setEvents(prev => ({
+          ...prev,
+          [tempEvent.column]: [...prev[tempEvent.column], newEvent]
+        }));
       }
     }
 
@@ -201,7 +201,6 @@ const IntraDayPlanner = () => {
     setResizing({ event, edge, columnType });
   };
 
-  // Utility functions remain the same
   const updateEventContent = (columnType, eventId, newContent) => {
     setEvents(prev => ({
       ...prev,
@@ -243,7 +242,7 @@ const IntraDayPlanner = () => {
     return (
       <div
         key={event.id}
-        className={`absolute left-2 right-2 ${colorOptions[event.colorIndex || 0]} border rounded cursor-move`}
+        className={`absolute left-12 right-2 ${colorOptions[event.colorIndex || 0]} border rounded cursor-move`}
         style={{ top, height }}
         onMouseDown={(e) => startEventMove(e, event, columnType)}
       >
@@ -288,21 +287,20 @@ const IntraDayPlanner = () => {
     );
   };
 
-  const renderTimeColumn = () => (
-    <div className="absolute -left-16 top-0 h-full">
-      {timeSlots.map((time, index) => (
-        <div key={time} className="h-[30px] flex items-center">
-          <span className="text-sm text-gray-500 select-none">{time}</span>
-        </div>
-      ))}
-    </div>
-  );
-
   const renderColumn = (columnType) => (
     <div className="border rounded-lg p-4">
       <h2 className="text-xl font-semibold mb-4 text-center">{columnType === 'planned' ? 'Planned' : 'Reality'}</h2>
-      <div className="relative h-[630px]" ref={timeGridRef}>
-        {renderTimeColumn()}
+      <div className="relative h-[600px]" ref={timeGridRef}>
+        {/* Time labels */}
+        <div className="absolute -left-4 top-3 h-full">
+          {timeSlots.map((time) => (
+            <div key={time} className="h-[30px] flex items-center">
+              <span className="text-sm text-gray-500 select-none">{time}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Grid lines */}
         <div className="ml-2">
           {timeSlots.map((time) => (
             <div
@@ -313,29 +311,19 @@ const IntraDayPlanner = () => {
           ))}
         </div>
 
+        {/* Events */}
         {events[columnType].map(event => renderEvent(event, columnType))}
 
+        {/* Temporary event while dragging */}
         {tempEvent && tempEvent.column === columnType && (
           <div
-            className="absolute left-2 right-2 bg-blue-100 border border-blue-300 rounded opacity-50"
+            className="absolute left-12 right-2 bg-blue-100 border border-blue-300 rounded opacity-50"
             style={{
               top: `${timeSlots.indexOf(tempEvent.start) * 30}px`,
               height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start) + 1) * 30}px`
             }}
           />
         )}
-
-        <div 
-          className="absolute left-0 right-0 flex items-center pointer-events-none"
-          style={{ top: `${getCurrentTimePosition()}px` }}
-        >
-          <div className="border-t-2 border-red-500 w-full" />
-          {columnType === 'reality' && (
-            <div className="bg-red-500 text-white text-sm px-2 py-1 rounded">
-              {formatTimeForDisplay(currentTime)}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -357,9 +345,33 @@ const IntraDayPlanner = () => {
         </button>
       </div>
       
-      <div className="grid grid-cols-2 gap-4">
-        {renderColumn('planned')}
-        {renderColumn('reality')}
+      <div className="relative">
+        {/* Current time indicator */}
+        <div 
+          className="absolute left-0 right-0 z-10 pointer-events-none"
+          style={{ 
+            top: `calc(${getCurrentTimePosition()}% - 19px)`,
+            transform: 'translateY(64px)'
+          }}
+        >
+          <div className="flex items-center w-full px-4">
+            <div className="flex-1">
+              <div className="border-t-2 border-red-500 w-full" />
+            </div>
+            <div className="w-4" />
+            <div className="flex-1 flex items-center">
+              <div className="border-t-2 border-red-500 flex-grow" />
+              <div className="bg-red-500 text-white text-sm px-2 py-1 rounded ml-2">
+                {formatTimeForDisplay(currentTime)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {renderColumn('planned')}
+          {renderColumn('reality')}
+        </div>
       </div>
     </div>
   );
