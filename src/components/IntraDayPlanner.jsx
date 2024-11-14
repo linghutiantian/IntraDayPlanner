@@ -250,33 +250,35 @@ const IntraDayPlanner = () => {
           className="absolute top-0 left-0 right-0 h-2 cursor-n-resize resize-handle hover:bg-gray-400/20"
           onMouseDown={(e) => handleResizeStart(e, event, 'top', columnType)}
         />
-        <div className="p-2 event-content">
-          <textarea
-            className="w-full bg-transparent resize-none event-content"
-            value={event.content}
-            onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
-            placeholder="Enter event details..."
-            onClick={(e) => e.stopPropagation()}
-          />
-          <div className="absolute top-1 right-1 flex gap-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                updateEventColor(columnType, event.id);
-              }}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <Palette size={16} />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteEvent(columnType, event.id);
-              }}
-              className="text-red-500 hover:text-red-700"
-            >
-              <Trash2 size={16} />
-            </button>
+        <div className="absolute inset-0 pt-0 pb-0 px-2 event-content">
+          <div className="relative h-full">
+            <textarea
+              className="w-full h-full bg-transparent resize-none event-content pr-8"
+              value={event.content}
+              onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
+              placeholder="Enter event details..."
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="absolute top-0 right-0 flex gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateEventColor(columnType, event.id);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <Palette size={16} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteEvent(columnType, event.id);
+                }}
+                className="text-red-500 hover:text-red-700"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
         </div>
         <div 
