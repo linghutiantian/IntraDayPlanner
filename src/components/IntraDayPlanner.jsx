@@ -58,9 +58,9 @@ const IntraDayPlanner = () => {
     const minutes = now.getMinutes();
     const totalMinutes = hours * 60 + minutes;
     const startMinutes = 8 * 60; // 8 AM
-    const endMinutes = 18 * 60; // 6 PM
-    
-    const percentage = ((totalMinutes - startMinutes) / (endMinutes - startMinutes)) * 100;
+    const endMinutes = 18 * 60 - 30; // 5:30 PM
+    // 2% is 8:00, 86% is 17:30
+    const percentage = ((totalMinutes - startMinutes) / (endMinutes - startMinutes)) * 84 + 2;
     return Math.min(Math.max(0, percentage), 100);
   };
 
@@ -350,7 +350,7 @@ const IntraDayPlanner = () => {
         <div 
           className="absolute left-0 right-0 z-10 pointer-events-none"
           style={{ 
-            top: `calc(${getCurrentTimePosition()}% - 19px)`,
+            top: `calc(${getCurrentTimePosition()}% - 1px)`,
             transform: 'translateY(64px)'
           }}
         >
