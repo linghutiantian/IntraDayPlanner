@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Palette } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type } from 'lucide-react';
 
 const IntraDayPlanner = () => {
   const timeSlots = Array.from({ length: 20 }, (_, i) => {
@@ -10,11 +10,31 @@ const IntraDayPlanner = () => {
   });
 
   const colorOptions = [
-    'bg-blue-100 border-blue-300',
-    'bg-green-100 border-green-300',
-    'bg-yellow-100 border-yellow-300',
-    'bg-purple-100 border-purple-300',
-    'bg-pink-100 border-pink-300'
+    { 
+      class: 'bg-blue-100 border-blue-300', 
+      hoverClass: 'hover:bg-blue-200',
+      label: 'Blue' 
+    },
+    { 
+      class: 'bg-green-100 border-green-300', 
+      hoverClass: 'hover:bg-green-200',
+      label: 'Green' 
+    },
+    { 
+      class: 'bg-yellow-100 border-yellow-300', 
+      hoverClass: 'hover:bg-yellow-200',
+      label: 'Yellow' 
+    },
+    { 
+      class: 'bg-purple-100 border-purple-300', 
+      hoverClass: 'hover:bg-purple-200',
+      label: 'Purple' 
+    },
+    { 
+      class: 'bg-pink-100 border-pink-300', 
+      hoverClass: 'hover:bg-pink-200',
+      label: 'Pink' 
+    }
   ];
 
   const initialEvents = { planned: [], reality: [] };
@@ -24,6 +44,7 @@ const IntraDayPlanner = () => {
     const saved = localStorage.getItem('dayPlanner');
     return saved ? JSON.parse(saved) : initialEvents;
   });
+
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
   const [currentColumn, setCurrentColumn] = useState(null);
@@ -32,11 +53,24 @@ const IntraDayPlanner = () => {
   const [resizing, setResizing] = useState(null);
   const [tempEvent, setTempEvent] = useState(null);
   const [movingEvent, setMovingEvent] = useState(null);
+  const [openColorPicker, setOpenColorPicker] = useState(null);
   const timeGridRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('dayPlanner', JSON.stringify(events));
   }, [events]);
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openColorPicker && !event.target.closest('.color-picker')) {
+        setOpenColorPicker(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openColorPicker]);
 
   const [currentTime, setCurrentTime] = useState(new Date());
   useEffect(() => {
@@ -45,10 +79,10 @@ const IntraDayPlanner = () => {
   }, []);
 
   const formatTimeForDisplay = (date) => {
-    return date.toLocaleTimeString('en-US', { 
+    return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
   };
 
@@ -66,16 +100,16 @@ const IntraDayPlanner = () => {
 
   const handleMouseDown = (e, timeSlot, column) => {
     if (e.target.classList.contains('resize-handle') || e.target.classList.contains('event-content')) return;
-    
+
     const gridRect = timeGridRef.current.getBoundingClientRect();
     const relativeY = e.clientY - gridRect.top;
     const slotIndex = Math.floor(relativeY / 30);
-    
+
     if (slotIndex > 0 && slotIndex < timeSlots.length) {
       setIsDragging(true);
       setDragStart(timeSlots[slotIndex]);
       setCurrentColumn(column);
-      
+
       setTempEvent({
         start: timeSlots[slotIndex],
         end: timeSlots[slotIndex],
@@ -87,7 +121,7 @@ const IntraDayPlanner = () => {
   const startEventMove = (e, event, columnType) => {
     e.stopPropagation();
     if (e.target.classList.contains('resize-handle')) return;
-    
+
     const rect = e.currentTarget.getBoundingClientRect();
     const offsetY = e.clientY - rect.top;
     setMovingEvent({
@@ -118,14 +152,14 @@ const IntraDayPlanner = () => {
         if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
           const hasOverlap = events[columnType].some(otherEvent => {
             if (otherEvent.id === event.id) return false;
-            return (timeSlots.indexOf(newStart) <= timeSlots.indexOf(otherEvent.end) && 
-                    timeSlots.indexOf(newEnd) >= timeSlots.indexOf(otherEvent.start));
+            return (timeSlots.indexOf(newStart) <= timeSlots.indexOf(otherEvent.end) &&
+              timeSlots.indexOf(newEnd) >= timeSlots.indexOf(otherEvent.start));
           });
 
           if (!hasOverlap) {
             setEvents(prev => ({
               ...prev,
-              [columnType]: prev[columnType].map(evt => 
+              [columnType]: prev[columnType].map(evt =>
                 evt.id === event.id ? { ...evt, start: newStart, end: newEnd } : evt
               )
             }));
@@ -147,7 +181,7 @@ const IntraDayPlanner = () => {
         if (!hasOverlap) {
           setEvents(prev => ({
             ...prev,
-            [movingEvent.columnType]: prev[movingEvent.columnType].map(evt => 
+            [movingEvent.columnType]: prev[movingEvent.columnType].map(evt =>
               evt.id === event.id ? {
                 ...evt,
                 start: timeSlots[newStartIndex],
@@ -164,7 +198,7 @@ const IntraDayPlanner = () => {
     if (isDragging && tempEvent) {
       const startIndex = timeSlots.indexOf(tempEvent.start);
       const endIndex = timeSlots.indexOf(tempEvent.end);
-      
+
       // Allow creation of 30-minute events (when start equals end)
       const hasOverlap = events[tempEvent.column].some(event => {
         const eventStart = timeSlots.indexOf(event.start);
@@ -204,19 +238,19 @@ const IntraDayPlanner = () => {
   const updateEventContent = (columnType, eventId, newContent) => {
     setEvents(prev => ({
       ...prev,
-      [columnType]: prev[columnType].map(event => 
+      [columnType]: prev[columnType].map(event =>
         event.id === eventId ? { ...event, content: newContent } : event
       )
     }));
   };
 
-  const updateEventColor = (columnType, eventId) => {
+  const toggleEventMode = (columnType, eventId) => {
     setEvents(prev => ({
       ...prev,
-      [columnType]: prev[columnType].map(event => 
+      [columnType]: prev[columnType].map(event =>
         event.id === eventId ? {
           ...event,
-          colorIndex: (event.colorIndex + 1) % colorOptions.length
+          isCheckboxMode: !event.isCheckboxMode
         } : event
       )
     }));
@@ -229,8 +263,63 @@ const IntraDayPlanner = () => {
     }));
   };
 
+  const updateEventColor = (columnType, eventId, colorIndex) => {
+    setEvents(prev => ({
+      ...prev,
+      [columnType]: prev[columnType].map(event =>
+        event.id === eventId ? {
+          ...event,
+          colorIndex
+        } : event
+      )
+    }));
+    setOpenColorPicker(null);
+  };
+
   const resetPlanner = () => {
     setEvents(initialEvents);
+  };
+
+  const renderEventContent = (event, columnType) => {
+    if (event.isCheckboxMode) {
+      const tasks = event.content.split('\n').filter(task => task.trim());
+      return (
+        <div className="w-full h-full p-2 overflow-y-auto">
+          {tasks.map((task, index) => (
+            <div key={index} className="flex items-start gap-2 mb-1">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={task.startsWith('[x]')}
+                onChange={() => {
+                  const newTasks = [...tasks];
+                  newTasks[index] = task.startsWith('[x]') ?
+                    task.replace('[x]', '[ ]') :
+                    task.startsWith('[ ]') ?
+                      task.replace('[ ]', '[x]') :
+                      `[x]${task}`;
+                  updateEventContent(columnType, event.id, newTasks.join('\n'));
+                }}
+                onClick={e => e.stopPropagation()}
+              />
+              <span className={task.startsWith('[x]') ? 'line-through' : ''}>
+                {task.replace(/^\[[\sx]\]/, '').trim()}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <textarea
+        className="w-full h-full bg-transparent resize-none event-content pr-8 px-1"
+        value={event.content}
+        onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
+        placeholder="Enter event details..."
+        onClick={(e) => e.stopPropagation()}
+      />
+    );
   };
 
   const renderEvent = (event, columnType) => {
@@ -242,33 +331,55 @@ const IntraDayPlanner = () => {
     return (
       <div
         key={event.id}
-        className={`absolute left-12 right-2 ${colorOptions[event.colorIndex || 0]} border rounded cursor-move`}
+        className={`absolute left-12 right-2 ${colorOptions[event.colorIndex || 0].class} border rounded cursor-move`}
         style={{ top, height }}
         onMouseDown={(e) => startEventMove(e, event, columnType)}
       >
-        <div 
+        <div
           className="absolute top-0 left-0 right-0 h-2 cursor-n-resize resize-handle hover:bg-gray-400/20"
           onMouseDown={(e) => handleResizeStart(e, event, 'top', columnType)}
         />
         <div className="absolute inset-0 pt-0 pb-0 px-2 event-content">
           <div className="relative h-full">
-            <textarea
-              className="w-full h-full bg-transparent resize-none event-content pr-8"
-              value={event.content}
-              onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
-              placeholder="Enter event details..."
-              onClick={(e) => e.stopPropagation()}
-            />
+            {renderEventContent(event, columnType)}
             <div className="absolute top-0 right-0 flex gap-1">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  updateEventColor(columnType, event.id);
+                  toggleEventMode(columnType, event.id);
                 }}
                 className="text-gray-500 hover:text-gray-700"
+                title={event.isCheckboxMode ? "Switch to Text Mode" : "Switch to Checkbox Mode"}
               >
-                <Palette size={16} />
+                {event.isCheckboxMode ? <Type size={16} /> : <CheckSquare size={16} />}
               </button>
+              <div className="relative color-picker">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenColorPicker(openColorPicker === event.id ? null : event.id);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <Palette size={16} />
+                </button>
+                {openColorPicker === event.id && (
+                  <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 w-32">
+                    {colorOptions.map((color, index) => (
+                      <button
+                        key={index}
+                        className={`w-full p-2 text-left ${color.class} ${color.hoverClass}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateEventColor(columnType, event.id, index);
+                        }}
+                      >
+                        {color.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -281,7 +392,7 @@ const IntraDayPlanner = () => {
             </div>
           </div>
         </div>
-        <div 
+        <div
           className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize resize-handle hover:bg-gray-400/20"
           onMouseDown={(e) => handleResizeStart(e, event, 'bottom', columnType)}
         />
@@ -331,7 +442,7 @@ const IntraDayPlanner = () => {
   );
 
   return (
-    <div 
+    <div
       className="max-w-6xl mx-auto p-4 bg-white shadow-lg rounded-lg"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -346,12 +457,12 @@ const IntraDayPlanner = () => {
           Reset Planner
         </button>
       </div>
-      
+
       <div className="relative">
         {/* Current time indicator */}
-        <div 
+        <div
           className="absolute left-0 right-0 z-10 pointer-events-none"
-          style={{ 
+          style={{
             top: `calc(${getCurrentTimePosition()}% - 1px)`,
             transform: 'translateY(64px)'
           }}
