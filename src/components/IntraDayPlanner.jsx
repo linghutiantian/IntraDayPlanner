@@ -313,7 +313,7 @@ const IntraDayPlanner = () => {
 
     return (
       <textarea
-        className="w-full h-full bg-transparent resize-none event-content pr-8 px-1"
+        className="w-full h-full bg-transparent resize-none event-content pr-12 px-1"
         value={event.content}
         onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
         placeholder="Enter event details..."
@@ -327,7 +327,7 @@ const IntraDayPlanner = () => {
     const endIndex = timeSlots.indexOf(event.end);
     const height = `${(endIndex - startIndex + 1) * 30}px`;
     const top = `${startIndex * 30}px`;
-
+  
     return (
       <div
         key={event.id}
@@ -336,7 +336,7 @@ const IntraDayPlanner = () => {
         onMouseDown={(e) => startEventMove(e, event, columnType)}
       >
         <div
-          className="absolute top-0 left-0 right-0 h-2 cursor-n-resize resize-handle hover:bg-gray-400/20"
+          className="absolute top-0 left-0 right-0 h-2 cursor-n-resize resize-handle hover:bg-gray-400/20 z-10"
           onMouseDown={(e) => handleResizeStart(e, event, 'top', columnType)}
         />
         <div className="absolute inset-0 pt-0 pb-0 px-2 event-content">
@@ -393,7 +393,7 @@ const IntraDayPlanner = () => {
           </div>
         </div>
         <div
-          className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize resize-handle hover:bg-gray-400/20"
+          className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize resize-handle hover:bg-gray-400/20 z-10"
           onMouseDown={(e) => handleResizeStart(e, event, 'bottom', columnType)}
         />
       </div>
