@@ -10,30 +10,30 @@ const IntraDayPlanner = () => {
   });
 
   const colorOptions = [
-    { 
-      class: 'bg-blue-100 border-blue-300', 
+    {
+      class: 'bg-blue-100 border-blue-300',
       hoverClass: 'hover:bg-blue-200',
-      label: 'Blue' 
+      label: 'Blue'
     },
-    { 
-      class: 'bg-green-100 border-green-300', 
+    {
+      class: 'bg-green-100 border-green-300',
       hoverClass: 'hover:bg-green-200',
-      label: 'Green' 
+      label: 'Green'
     },
-    { 
-      class: 'bg-yellow-100 border-yellow-300', 
+    {
+      class: 'bg-yellow-100 border-yellow-300',
       hoverClass: 'hover:bg-yellow-200',
-      label: 'Yellow' 
+      label: 'Yellow'
     },
-    { 
-      class: 'bg-purple-100 border-purple-300', 
+    {
+      class: 'bg-purple-100 border-purple-300',
       hoverClass: 'hover:bg-purple-200',
-      label: 'Purple' 
+      label: 'Purple'
     },
-    { 
-      class: 'bg-pink-100 border-pink-300', 
+    {
+      class: 'bg-pink-100 border-pink-300',
       hoverClass: 'hover:bg-pink-200',
-      label: 'Pink' 
+      label: 'Pink'
     }
   ];
 
@@ -284,12 +284,12 @@ const IntraDayPlanner = () => {
     if (event.isCheckboxMode) {
       const tasks = event.content.split('\n').filter(task => task.trim());
       return (
-        <div className="w-full h-full p-2 overflow-y-auto">
+        <div className="w-full h-full p-1 overflow-y-auto">
           {tasks.map((task, index) => (
-            <div key={index} className="flex items-start gap-2 mb-1">
+            <div key={index} className="flex items-start gap-2 mb-0.5 leading-tight">
               <input
                 type="checkbox"
-                className="mt-1"
+                className="mt-0.5"
                 checked={task.startsWith('[x]')}
                 onChange={() => {
                   const newTasks = [...tasks];
@@ -302,7 +302,7 @@ const IntraDayPlanner = () => {
                 }}
                 onClick={e => e.stopPropagation()}
               />
-              <span className={task.startsWith('[x]') ? 'line-through' : ''}>
+              <span className={`${task.startsWith('[x]') ? 'line-through' : ''} leading-tight`}>
                 {task.replace(/^\[[\sx]\]/, '').trim()}
               </span>
             </div>
@@ -313,7 +313,7 @@ const IntraDayPlanner = () => {
 
     return (
       <textarea
-        className="w-full h-full bg-transparent resize-none event-content pr-12 px-1"
+        className="w-full h-full bg-transparent resize-none event-content pr-12 px-1 leading-tight"
         value={event.content}
         onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
         placeholder="Enter event details..."
@@ -327,7 +327,7 @@ const IntraDayPlanner = () => {
     const endIndex = timeSlots.indexOf(event.end);
     const height = `${(endIndex - startIndex + 1) * 30}px`;
     const top = `${startIndex * 30}px`;
-  
+
     return (
       <div
         key={event.id}
