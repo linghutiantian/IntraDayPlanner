@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Palette, CheckSquare, Type } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type, Undo2 } from 'lucide-react';
 
 const IntraDayPlanner = () => {
   const timeSlots = Array.from({ length: 20 }, (_, i) => {
@@ -45,6 +45,10 @@ const IntraDayPlanner = () => {
     return saved ? JSON.parse(saved) : initialEvents;
   });
 
+  // History stack for undo functionality
+  const [history, setHistory] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
   const [currentColumn, setCurrentColumn] = useState(null);
@@ -55,6 +59,29 @@ const IntraDayPlanner = () => {
   const [movingEvent, setMovingEvent] = useState(null);
   const [openColorPicker, setOpenColorPicker] = useState(null);
   const timeGridRef = useRef(null);
+
+  const updateEventsWithHistory = (newEvents) => {
+    // If we're not at the end of the history, remove all future states
+    const newHistory = history.slice(0, currentIndex + 1);
+    
+    // Add the current state to history
+    newHistory.push(JSON.stringify(events));
+    
+    // Update history and current index
+    setHistory(newHistory);
+    setCurrentIndex(newHistory.length - 1);
+    
+    // Update events
+    setEvents(newEvents);
+  };
+
+  const handleUndo = () => {
+    if (currentIndex > 0) {
+      const previousState = JSON.parse(history[currentIndex - 1]);
+      setCurrentIndex(currentIndex - 1);
+      setEvents(previousState);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('dayPlanner', JSON.stringify(events));
@@ -215,7 +242,7 @@ const IntraDayPlanner = () => {
           colorIndex: 0
         };
 
-        setEvents(prev => ({
+        updateEventsWithHistory(prev => ({
           ...prev,
           [tempEvent.column]: [...prev[tempEvent.column], newEvent]
         }));
@@ -236,7 +263,7 @@ const IntraDayPlanner = () => {
   };
 
   const updateEventContent = (columnType, eventId, newContent) => {
-    setEvents(prev => ({
+    updateEventsWithHistory(prev => ({
       ...prev,
       [columnType]: prev[columnType].map(event =>
         event.id === eventId ? { ...event, content: newContent } : event
@@ -245,7 +272,7 @@ const IntraDayPlanner = () => {
   };
 
   const toggleEventMode = (columnType, eventId) => {
-    setEvents(prev => ({
+    updateEventsWithHistory(prev => ({
       ...prev,
       [columnType]: prev[columnType].map(event =>
         event.id === eventId ? {
@@ -257,14 +284,14 @@ const IntraDayPlanner = () => {
   };
 
   const deleteEvent = (columnType, eventId) => {
-    setEvents(prev => ({
+    updateEventsWithHistory(prev => ({
       ...prev,
       [columnType]: prev[columnType].filter(event => event.id !== eventId)
     }));
   };
 
   const updateEventColor = (columnType, eventId, colorIndex) => {
-    setEvents(prev => ({
+    updateEventsWithHistory(prev => ({
       ...prev,
       [columnType]: prev[columnType].map(event =>
         event.id === eventId ? {
@@ -277,7 +304,7 @@ const IntraDayPlanner = () => {
   };
 
   const resetPlanner = () => {
-    setEvents(initialEvents);
+    updateEventsWithHistory(initialEvents);
   };
 
   const renderEventContent = (event, columnType) => {
@@ -450,12 +477,24 @@ const IntraDayPlanner = () => {
     >
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Intra-day Planner</h1>
-        <button
-          onClick={resetPlanner}
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Reset Planner
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleUndo}
+            disabled={currentIndex <= 0}
+            className={`px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2 ${
+              currentIndex <= 0 ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <Undo2 size={16} />
+            Undo
+          </button>
+          <button
+            onClick={resetPlanner}
+            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Reset Planner
+          </button>
+        </div>
       </div>
 
       <div className="relative">
