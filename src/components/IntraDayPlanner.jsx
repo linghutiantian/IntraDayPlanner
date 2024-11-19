@@ -124,7 +124,7 @@ const IntraDayPlanner = () => {
     const endMinutes = 18 * 60 - 30; // 5:30 PM
     // 2% is 8:00, 86% is 17:30
     const percentage = ((totalMinutes - startMinutes) / (endMinutes - startMinutes)) * 84 + 2;
-    return Math.min(Math.max(0, percentage), 100);
+    return Math.min(Math.max(2, percentage), 86);
   };
 
   const handleMouseDown = (e, timeSlot, column) => {
