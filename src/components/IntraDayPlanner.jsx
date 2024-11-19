@@ -63,14 +63,14 @@ const IntraDayPlanner = () => {
   const updateEventsWithHistory = (newEvents) => {
     // If we're not at the end of the history, remove all future states
     const newHistory = history.slice(0, currentIndex + 1);
-    
+
     // Add the current state to history
     newHistory.push(JSON.stringify(events));
-    
+
     // Update history and current index
     setHistory(newHistory);
     setCurrentIndex(newHistory.length - 1);
-    
+
     // Update events
     setEvents(newEvents);
   };
@@ -234,8 +234,9 @@ const IntraDayPlanner = () => {
       });
 
       if (!hasOverlap) {
+        const newEventId = Date.now();
         const newEvent = {
-          id: Date.now(),
+          id: newEventId,
           start: tempEvent.start,
           end: tempEvent.end,
           content: '',
@@ -246,6 +247,17 @@ const IntraDayPlanner = () => {
           ...prev,
           [tempEvent.column]: [...prev[tempEvent.column], newEvent]
         }));
+
+        // Set a timeout to allow the DOM to update before focusing
+        setTimeout(() => {
+          const eventElement = document.querySelector(`[data-event-id="${newEventId}"]`);
+          if (eventElement) {
+            const textarea = eventElement.querySelector('textarea');
+            if (textarea) {
+              textarea.focus();
+            }
+          }
+        }, 0);
       }
     }
 
@@ -358,6 +370,7 @@ const IntraDayPlanner = () => {
     return (
       <div
         key={event.id}
+        data-event-id={event.id}
         className={`absolute left-12 right-2 ${colorOptions[event.colorIndex || 0].class} border rounded cursor-move`}
         style={{ top, height }}
         onMouseDown={(e) => startEventMove(e, event, columnType)}
@@ -483,7 +496,7 @@ const IntraDayPlanner = () => {
             disabled={currentIndex <= 0}
             className={`px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2 ${
               currentIndex <= 0 ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+              }`}
           >
             <Undo2 size={16} />
             Undo
