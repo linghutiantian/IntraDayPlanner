@@ -37,6 +37,8 @@ const IntraDayPlanner = () => {
     }
   ];
 
+  const [lastColorIndex, setLastColorIndex] = useState(0); // Default to blue (index 0)
+
   const initialEvents = { planned: [], reality: [] };
 
   // State management
@@ -240,7 +242,7 @@ const IntraDayPlanner = () => {
           start: tempEvent.start,
           end: tempEvent.end,
           content: '',
-          colorIndex: 0
+          colorIndex: lastColorIndex // Use the last selected color
         };
 
         updateEventsWithHistory(prev => ({
@@ -303,6 +305,7 @@ const IntraDayPlanner = () => {
   };
 
   const updateEventColor = (columnType, eventId, colorIndex) => {
+    setLastColorIndex(colorIndex); // Store the last used color index
     updateEventsWithHistory(prev => ({
       ...prev,
       [columnType]: prev[columnType].map(event =>
@@ -470,7 +473,7 @@ const IntraDayPlanner = () => {
         {/* Temporary event while dragging */}
         {tempEvent && tempEvent.column === columnType && (
           <div
-            className="absolute left-12 right-2 bg-blue-100 border border-blue-300 rounded opacity-50"
+            className={`absolute left-12 right-2 ${colorOptions[lastColorIndex].class} border rounded opacity-50`}
             style={{
               top: `${timeSlots.indexOf(tempEvent.start) * 30}px`,
               height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start) + 1) * 30}px`
