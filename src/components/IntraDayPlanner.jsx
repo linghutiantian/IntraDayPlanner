@@ -62,12 +62,17 @@ const IntraDayPlanner = () => {
   const [openColorPicker, setOpenColorPicker] = useState(null);
   const timeGridRef = useRef(null);
 
-  const updateEventsWithHistory = (newEvents) => {
+  const updateEventsWithHistory = (newEventsOrUpdater) => {
+    // Calculate new events state
+    const newEvents = typeof newEventsOrUpdater === 'function' 
+      ? newEventsOrUpdater(events)
+      : newEventsOrUpdater;
+
     // If we're not at the end of the history, remove all future states
     const newHistory = history.slice(0, currentIndex + 1);
-
-    // Add the current state to history
-    newHistory.push(JSON.stringify(events));
+    
+    // Add the new state to history
+    newHistory.push(JSON.stringify(newEvents));
 
     // Update history and current index
     setHistory(newHistory);
