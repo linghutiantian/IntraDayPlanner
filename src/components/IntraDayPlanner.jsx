@@ -266,6 +266,9 @@ const IntraDayPlanner = () => {
           }
         }, 0);
       }
+    } else if (resizing || movingEvent) {
+      // Record the final state in history only when the drag operation ends
+      updateEventsWithHistory(events);
     }
 
     setIsDragging(false);
