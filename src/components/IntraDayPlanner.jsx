@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Palette, CheckSquare, Type, Undo2 } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type, Undo2, Copy } from 'lucide-react';
 
 const IntraDayPlanner = () => {
   const timeSlots = Array.from({ length: 20 }, (_, i) => {
@@ -372,6 +372,43 @@ const IntraDayPlanner = () => {
     );
   };
 
+  const duplicateToReality = (event) => {
+    // Find a non-overlapping position for the duplicated event
+    const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
+    let newStartIndex = timeSlots.indexOf(event.start);
+    let found = false;
+
+    // Try to find a non-overlapping slot
+    while (!found && newStartIndex < timeSlots.length - eventDuration) {
+      const newEndIndex = newStartIndex + eventDuration;
+      const hasOverlap = events.reality.some(existingEvent => {
+        const existingStart = timeSlots.indexOf(existingEvent.start);
+        const existingEnd = timeSlots.indexOf(existingEvent.end);
+        return (newStartIndex <= existingEnd && newEndIndex >= existingStart);
+      });
+
+      if (!hasOverlap) {
+        found = true;
+      } else {
+        newStartIndex++;
+      }
+    }
+
+    if (found) {
+      const newEvent = {
+        ...event,
+        id: Date.now(), // New unique ID
+        start: timeSlots[newStartIndex],
+        end: timeSlots[newStartIndex + eventDuration],
+      };
+
+      updateEventsWithHistory(prev => ({
+        ...prev,
+        reality: [...prev.reality, newEvent]
+      }));
+    }
+  };
+
   const renderEvent = (event, columnType) => {
     const startIndex = timeSlots.indexOf(event.start);
     const endIndex = timeSlots.indexOf(event.end);
@@ -394,6 +431,18 @@ const IntraDayPlanner = () => {
           <div className="relative h-full">
             {renderEventContent(event, columnType)}
             <div className="absolute top-0 right-0 flex gap-1">
+              {columnType === 'planned' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    duplicateToReality(event);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                  title="Copy to Reality"
+                >
+                  <Copy size={16} />
+                </button>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
