@@ -1,7 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Palette, CheckSquare, Type, Undo2, Copy } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon } from 'lucide-react';
 
 const IntraDayPlanner = () => {
+  const [isDark, setIsDark] = useState(() => {
+    // First check localStorage for saved preference
+    const savedDarkMode = localStorage.getItem('dayPlannerDarkMode');
+    if (savedDarkMode !== null) {
+      return savedDarkMode === 'true';
+    }
+    // If no saved preference, use system preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  // Save dark mode preference whenever it changes
+  useEffect(() => {
+    localStorage.setItem('dayPlannerDarkMode', isDark);
+  }, [isDark]);
+
   const timeSlots = Array.from({ length: 20 }, (_, i) => {
     const totalMinutes = i * 30 + (8 * 60); // Start from 8:00 AM
     const hours = Math.floor(totalMinutes / 60);
@@ -11,28 +26,28 @@ const IntraDayPlanner = () => {
 
   const colorOptions = [
     {
-      class: 'bg-blue-100 border-blue-300',
-      hoverClass: 'hover:bg-blue-200',
+      class: isDark ? 'bg-blue-900 border-blue-700' : 'bg-blue-100 border-blue-300',
+      hoverClass: isDark ? 'hover:bg-blue-800' : 'hover:bg-blue-200',
       label: 'Blue'
     },
     {
-      class: 'bg-green-100 border-green-300',
-      hoverClass: 'hover:bg-green-200',
+      class: isDark ? 'bg-green-900 border-green-700' : 'bg-green-100 border-green-300',
+      hoverClass: isDark ? 'hover:bg-green-800' : 'hover:bg-green-200',
       label: 'Green'
     },
     {
-      class: 'bg-yellow-100 border-yellow-300',
-      hoverClass: 'hover:bg-yellow-200',
+      class: isDark ? 'bg-yellow-900 border-yellow-700' : 'bg-yellow-100 border-yellow-300',
+      hoverClass: isDark ? 'hover:bg-yellow-800' : 'hover:bg-yellow-200',
       label: 'Yellow'
     },
     {
-      class: 'bg-purple-100 border-purple-300',
-      hoverClass: 'hover:bg-purple-200',
+      class: isDark ? 'bg-purple-900 border-purple-700' : 'bg-purple-100 border-purple-300',
+      hoverClass: isDark ? 'hover:bg-purple-800' : 'hover:bg-purple-200',
       label: 'Purple'
     },
     {
-      class: 'bg-pink-100 border-pink-300',
-      hoverClass: 'hover:bg-pink-200',
+      class: isDark ? 'bg-pink-900 border-pink-700' : 'bg-pink-100 border-pink-300',
+      hoverClass: isDark ? 'hover:bg-pink-800' : 'hover:bg-pink-200',
       label: 'Pink'
     }
   ];
@@ -64,13 +79,13 @@ const IntraDayPlanner = () => {
 
   const updateEventsWithHistory = (newEventsOrUpdater) => {
     // Calculate new events state
-    const newEvents = typeof newEventsOrUpdater === 'function' 
+    const newEvents = typeof newEventsOrUpdater === 'function'
       ? newEventsOrUpdater(events)
       : newEventsOrUpdater;
 
     // If we're not at the end of the history, remove all future states
     const newHistory = history.slice(0, currentIndex + 1);
-    
+
     // Add the new state to history
     newHistory.push(JSON.stringify(newEvents));
 
@@ -110,6 +125,16 @@ const IntraDayPlanner = () => {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const savedDarkMode = localStorage.getItem('dayPlannerDarkMode');
+    if (savedDarkMode === null) {
+      const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = (e) => setIsDark(e.matches);
+      darkModeMediaQuery.addEventListener('change', handleChange);
+      return () => darkModeMediaQuery.removeEventListener('change', handleChange);
+    }
   }, []);
 
   const formatTimeForDisplay = (date) => {
@@ -352,7 +377,7 @@ const IntraDayPlanner = () => {
                 }}
                 onClick={e => e.stopPropagation()}
               />
-              <span className={`${task.startsWith('[x]') ? 'line-through' : ''} leading-tight`}>
+              <span className={`${task.startsWith('[x]') ? 'line-through' : ''} leading-tight ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 {task.replace(/^\[[\sx]\]/, '').trim()}
               </span>
             </div>
@@ -363,7 +388,8 @@ const IntraDayPlanner = () => {
 
     return (
       <textarea
-        className="w-full h-full bg-transparent resize-none event-content pr-12 px-1 leading-tight"
+        className={`w-full h-full resize-none event-content pr-12 px-1 leading-tight ${isDark ? 'bg-transparent text-gray-300 placeholder-gray-500' : 'bg-transparent text-gray-700 placeholder-gray-400'
+          }`}
         value={event.content}
         onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
         placeholder="Enter event details..."
@@ -501,14 +527,17 @@ const IntraDayPlanner = () => {
   };
 
   const renderColumn = (columnType) => (
-    <div className="border rounded-lg p-4">
-      <h2 className="text-xl font-semibold mb-4 text-center">{columnType === 'planned' ? 'Planned' : 'Reality'}</h2>
+    <div className={`border rounded-lg p-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+      <h2 className={`text-xl font-semibold mb-4 text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+        {columnType === 'planned' ? 'Planned' : 'Reality'}
+      </h2>
       <div className="relative h-[600px]" ref={timeGridRef}>
-        {/* Time labels */}
         <div className="absolute -left-4 top-3 h-full">
           {timeSlots.map((time) => (
             <div key={time} className="h-[30px] flex items-center">
-              <span className="text-sm text-gray-500 select-none">{time}</span>
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} select-none`}>
+                {time}
+              </span>
             </div>
           ))}
         </div>
@@ -518,7 +547,7 @@ const IntraDayPlanner = () => {
           {timeSlots.map((time) => (
             <div
               key={time}
-              className="h-[30px] border-b border-gray-200"
+              className={`h-[30px] border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
               onMouseDown={(e) => handleMouseDown(e, time, columnType)}
             />
           ))}
@@ -543,7 +572,8 @@ const IntraDayPlanner = () => {
 
   return (
     <div
-      className="max-w-6xl mx-auto p-4 bg-white shadow-lg rounded-lg"
+      className={`max-w-6xl mx-auto p-4 shadow-lg rounded-lg ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
+        }`}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
@@ -552,10 +582,16 @@ const IntraDayPlanner = () => {
         <h1 className="text-2xl font-bold">Intra-day Planner</h1>
         <div className="flex gap-2">
           <button
+            onClick={() => setIsDark(!isDark)}
+            className={`px-4 py-2 rounded flex items-center gap-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+          >
+            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button
             onClick={handleUndo}
             disabled={currentIndex <= 0}
-            className={`px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2 ${
-              currentIndex <= 0 ? 'opacity-50 cursor-not-allowed' : ''
+            className={`px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2 ${currentIndex <= 0 ? 'opacity-50 cursor-not-allowed' : ''
               }`}
           >
             <Undo2 size={16} />
