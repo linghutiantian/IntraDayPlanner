@@ -444,6 +444,7 @@ const IntraDayPlanner = () => {
       const newEvent = {
         ...event,
         id: Date.now(), // New unique ID
+        sourceId: event.id,  // Track which planned event this was copied from
         start: timeSlots[newStartIndex],
         end: timeSlots[newStartIndex + eventDuration],
       };
@@ -454,6 +455,56 @@ const IntraDayPlanner = () => {
       }));
     }
   };
+
+  // Add helper function to calculate connection points
+  const calculateConnectionPoints = (plannedEvent, realityEvent) => {
+    const plannedEl = document.querySelector(`[data-event-id="${plannedEvent.id}"]`);
+    const realityEl = document.querySelector(`[data-event-id="${realityEvent.id}"]`);
+
+    if (!plannedEl || !realityEl) return null;
+
+    const plannedRect = plannedEl.getBoundingClientRect();
+    const realityRect = realityEl.getBoundingClientRect();
+    const gridRect = timeGridRef.current.getBoundingClientRect();
+    const colWidth = gridRect.width; // Width of each column
+
+
+    // Calculate relative positions, accounting for the two-column layout
+    return {
+      x1: colWidth + 8,
+      y1: (plannedRect.top - gridRect.top) + (plannedRect.height / 2) + 64,
+      x2: colWidth + 48,
+      y2: (realityRect.top - gridRect.top) + (realityRect.height / 2) + 64
+    };
+  }
+  const [connections, setConnections] = useState([]);
+
+  // Update connections when events change or on window resize
+  useEffect(() => {
+    const updateConnections = () => {
+      const newConnections = events.reality
+        .filter(realityEvent => realityEvent.sourceId)
+        .map(realityEvent => {
+          const plannedEvent = events.planned.find(p => p.id === realityEvent.sourceId);
+          if (!plannedEvent) return null;
+
+          const points = calculateConnectionPoints(plannedEvent, realityEvent);
+          if (!points) return null;
+
+          return {
+            id: `${plannedEvent.id}-${realityEvent.id}`,
+            ...points
+          };
+        })
+        .filter(Boolean);
+
+      setConnections(newConnections);
+    };
+
+    updateConnections();
+    window.addEventListener('resize', updateConnections);
+    return () => window.removeEventListener('resize', updateConnections);
+  }, [events]);
 
   const moveToStandby = (event) => {
     // Create new standby item
@@ -858,6 +909,25 @@ const IntraDayPlanner = () => {
           {renderColumn('planned')}
           {renderColumn('reality')}
         </div>
+        <svg
+          className="absolute top-0 left-0 w-full h-full pointer-events-none"
+          style={{ zIndex: 1 }}
+        >
+          {connections.map(conn => (
+            <g key={conn.id}>
+              <path
+                d={`M ${conn.x1} ${conn.y1} C ${conn.x1 + 20} ${conn.y1}, ${conn.x2 - 20} ${conn.y2}, ${conn.x2} ${conn.y2}`}
+                stroke="#8884"
+                strokeWidth="1.5"
+                fill="none"
+              />
+              <path
+                d={`M ${conn.x2} ${conn.y2} L ${conn.x2 - 5} ${conn.y2 - 3} L ${conn.x2 - 5} ${conn.y2 + 3} Z`}
+                fill="#8884"
+              />
+            </g>
+          ))}
+        </svg>
       </div>
       {renderStandbySection()}
     </div>
