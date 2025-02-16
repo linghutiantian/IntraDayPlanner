@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus } from 'lucide-react';
 
 const IntraDayPlanner = () => {
   const [isDark, setIsDark] = useState(() => {
@@ -54,12 +54,21 @@ const IntraDayPlanner = () => {
 
   const [lastColorIndex, setLastColorIndex] = useState(0); // Default to blue (index 0)
 
-  const initialEvents = { planned: [], reality: [] };
+  const initialEvents = { planned: [], reality: [], standby: [] };
 
   // State management
   const [events, setEvents] = useState(() => {
     const saved = localStorage.getItem('dayPlanner');
-    return saved ? JSON.parse(saved) : initialEvents;
+    if (saved) {
+      const parsedEvents = JSON.parse(saved);
+      // Ensure standby array exists in saved data
+      return {
+        ...initialEvents,
+        ...parsedEvents,
+        standby: parsedEvents.standby || []
+      };
+    }
+    return initialEvents;
   });
 
   // History stack for undo functionality
@@ -352,7 +361,18 @@ const IntraDayPlanner = () => {
   };
 
   const resetPlanner = () => {
-    updateEventsWithHistory(initialEvents);
+    updateEventsWithHistory(prev => ({
+      ...prev,
+      planned: [],
+      reality: []
+    }));
+  };
+  
+  const clearStandby = () => {
+    updateEventsWithHistory(prev => ({
+      ...prev,
+      standby: []
+    }));
   };
 
   const renderEventContent = (event, columnType) => {
@@ -570,6 +590,175 @@ const IntraDayPlanner = () => {
     </div>
   );
 
+  const createStandbyItem = () => {
+    const newEventId = Date.now();
+    updateEventsWithHistory(prev => ({
+      ...prev,
+      standby: [...prev.standby, {
+        id: newEventId,
+        content: '',
+        colorIndex: lastColorIndex
+      }]
+    }));
+
+    // Focus the new item
+    setTimeout(() => {
+      const eventElement = document.querySelector(`[data-standby-id="${newEventId}"]`);
+      if (eventElement) {
+        const textarea = eventElement.querySelector('textarea');
+        if (textarea) {
+          textarea.focus();
+        }
+      }
+    }, 0);
+  };
+
+  const copyToPlanned = (standbyEvent) => {
+    // Find first available time slot that can fit a 30-minute event
+    let startIndex = 0;
+    while (startIndex < timeSlots.length - 1) {
+      const hasOverlap = events.planned.some(event => {
+        const eventStart = timeSlots.indexOf(event.start);
+        const eventEnd = timeSlots.indexOf(event.end);
+        return (startIndex <= eventEnd && (startIndex + 1) >= eventStart);
+      });
+
+      if (!hasOverlap) {
+        const newEvent = {
+          id: Date.now(),
+          start: timeSlots[startIndex],
+          end: timeSlots[startIndex + 1],
+          content: standbyEvent.content,
+          colorIndex: standbyEvent.colorIndex,
+          isCheckboxMode: standbyEvent.isCheckboxMode
+        };
+
+        updateEventsWithHistory(prev => ({
+          ...prev,
+          planned: [...prev.planned, newEvent]
+        }));
+        break;
+      }
+      startIndex++;
+    }
+  };
+
+  const renderStandbySection = () => (
+    <div className={`mt-8 border rounded-lg p-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className={`text-xl font-semibold text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+          Standby Items
+        </h2>
+        <div className="flex gap-2">
+          <button
+            onClick={createStandbyItem}
+            className={`px-3 py-1 rounded-lg flex items-center gap-2 ${
+              isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            <Plus size={16} />
+            Add Item
+          </button>
+          <button
+            onClick={clearStandby}
+            className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600"
+          >
+            Clear All
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex flex-wrap gap-4">
+        {events.standby.map(item => (
+          <div
+            key={item.id}
+            data-standby-id={item.id}
+            className={`relative w-64 min-h-32 p-2 rounded ${colorOptions[item.colorIndex || 0].class} border`}
+          >
+            {item.isCheckboxMode ? (
+              <div className="w-full h-full p-1 overflow-y-auto">
+                {item.content.split('\n').filter(task => task.trim()).map((task, index) => (
+                  <div key={index} className="flex items-start gap-2 mb-0.5">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={task.startsWith('[x]')}
+                      onChange={() => {
+                        const tasks = item.content.split('\n').filter(t => t.trim());
+                        tasks[index] = task.startsWith('[x]') ?
+                          task.replace('[x]', '[ ]') :
+                          task.startsWith('[ ]') ?
+                            task.replace('[ ]', '[x]') :
+                            `[x]${task}`;
+                        updateEventContent('standby', item.id, tasks.join('\n'));
+                      }}
+                    />
+                    <span className={`${task.startsWith('[x]') ? 'line-through' : ''} ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {task.replace(/^\[[\sx]\]/, '').trim()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <textarea
+                className={`w-full h-full min-h-24 resize-none bg-transparent pr-12 ${
+                  isDark ? 'text-gray-300 placeholder-gray-500' : 'text-gray-700 placeholder-gray-400'
+                }`}
+                value={item.content}
+                onChange={(e) => updateEventContent('standby', item.id, e.target.value)}
+                placeholder="Enter item details..."
+              />
+            )}
+            
+            <div className="absolute top-2 right-2 flex gap-1">
+              <button
+                onClick={() => copyToPlanned(item)}
+                className="text-gray-500 hover:text-gray-700"
+                title="Copy to Planned"
+              >
+                <Copy size={16} />
+              </button>
+              <button
+                onClick={() => toggleEventMode('standby', item.id)}
+                className="text-gray-500 hover:text-gray-700"
+                title={item.isCheckboxMode ? "Switch to Text Mode" : "Switch to Checkbox Mode"}
+              >
+                {item.isCheckboxMode ? <Type size={16} /> : <CheckSquare size={16} />}
+              </button>
+              <div className="relative color-picker">
+                <button
+                  onClick={() => setOpenColorPicker(openColorPicker === item.id ? null : item.id)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <Palette size={16} />
+                </button>
+                {openColorPicker === item.id && (
+                  <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 w-32">
+                    {colorOptions.map((color, index) => (
+                      <button
+                        key={index}
+                        className={`w-full p-2 text-left ${color.class} ${color.hoverClass}`}
+                        onClick={() => updateEventColor('standby', item.id, index)}
+                      >
+                        {color.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => deleteEvent('standby', item.id)}
+                className="text-red-500 hover:text-red-700"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div
       className={`max-w-6xl mx-auto p-4 shadow-lg rounded-lg ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
@@ -634,6 +823,7 @@ const IntraDayPlanner = () => {
           {renderColumn('reality')}
         </div>
       </div>
+      {renderStandbySection()}
     </div>
   );
 };
