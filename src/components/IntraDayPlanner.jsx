@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowDown } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown } from 'lucide-react';
 
 const IntraDayPlanner = () => {
   const [isDark, setIsDark] = useState(() => {
@@ -642,7 +642,8 @@ const IntraDayPlanner = () => {
     }, 0);
   };
 
-  const copyToPlanned = (standbyEvent) => {
+  const moveToPlanned = (standbyEvent, shouldCopy = false) => {
+
     // Find first available time slot that can fit a 30-minute event
     let startIndex = 0;
     while (startIndex < timeSlots.length - 1) {
@@ -664,7 +665,8 @@ const IntraDayPlanner = () => {
 
         updateEventsWithHistory(prev => ({
           ...prev,
-          planned: [...prev.planned, newEvent]
+          planned: [...prev.planned, newEvent],
+          standby: shouldCopy ? prev.standby : prev.standby.filter(e => e.id !== standbyEvent.id)
         }));
         break;
       }
@@ -739,11 +741,18 @@ const IntraDayPlanner = () => {
 
             <div className="absolute top-2 right-2 flex gap-1">
               <button
-                onClick={() => copyToPlanned(item)}
+                onClick={() => moveToPlanned(item, true)}
                 className="text-gray-500 hover:text-gray-700"
                 title="Copy to Planned"
               >
                 <Copy size={16} />
+              </button>
+              <button
+                onClick={() => moveToPlanned(item, false)}
+                className="text-gray-500 hover:text-gray-700"
+                title="Move to Planned"
+              >
+                <ArrowUp size={16} />
               </button>
               <button
                 onClick={() => toggleEventMode('standby', item.id)}
