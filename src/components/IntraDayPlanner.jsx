@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowDown } from 'lucide-react';
 
 const IntraDayPlanner = () => {
   const [isDark, setIsDark] = useState(() => {
@@ -367,7 +367,7 @@ const IntraDayPlanner = () => {
       reality: []
     }));
   };
-  
+
   const clearStandby = () => {
     updateEventsWithHistory(prev => ({
       ...prev,
@@ -455,6 +455,23 @@ const IntraDayPlanner = () => {
     }
   };
 
+  const moveToStandby = (event) => {
+    // Create new standby item
+    const standbyItem = {
+      id: Date.now(),
+      content: event.content,
+      colorIndex: event.colorIndex,
+      isCheckboxMode: event.isCheckboxMode
+    };
+
+    // Add to standby and remove from planned
+    updateEventsWithHistory(prev => ({
+      ...prev,
+      standby: [...prev.standby, standbyItem],
+      planned: prev.planned.filter(e => e.id !== event.id)
+    }));
+  };
+
   const renderEvent = (event, columnType) => {
     const startIndex = timeSlots.indexOf(event.start);
     const endIndex = timeSlots.indexOf(event.end);
@@ -478,16 +495,28 @@ const IntraDayPlanner = () => {
             {renderEventContent(event, columnType)}
             <div className="absolute top-0 right-0 flex gap-1">
               {columnType === 'planned' && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    duplicateToReality(event);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                  title="Copy to Reality"
-                >
-                  <Copy size={16} />
-                </button>
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      duplicateToReality(event);
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                    title="Copy to Reality"
+                  >
+                    <Copy size={16} />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveToStandby(event);
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                    title="Move to Standby"
+                  >
+                    <ArrowDown size={16} />
+                  </button>
+                </>
               )}
               <button
                 onClick={(e) => {
@@ -652,9 +681,8 @@ const IntraDayPlanner = () => {
         <div className="flex gap-2">
           <button
             onClick={createStandbyItem}
-            className={`px-3 py-1 rounded-lg flex items-center gap-2 ${
-              isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
+            className={`px-3 py-1 rounded-lg flex items-center gap-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
           >
             <Plus size={16} />
             Add Item
@@ -667,7 +695,7 @@ const IntraDayPlanner = () => {
           </button>
         </div>
       </div>
-      
+
       <div className="flex flex-wrap gap-4">
         {events.standby.map(item => (
           <div
@@ -701,15 +729,14 @@ const IntraDayPlanner = () => {
               </div>
             ) : (
               <textarea
-                className={`w-full h-full min-h-24 resize-none bg-transparent pr-12 ${
-                  isDark ? 'text-gray-300 placeholder-gray-500' : 'text-gray-700 placeholder-gray-400'
-                }`}
+                className={`w-full h-full min-h-24 resize-none bg-transparent pr-12 ${isDark ? 'text-gray-300 placeholder-gray-500' : 'text-gray-700 placeholder-gray-400'
+                  }`}
                 value={item.content}
                 onChange={(e) => updateEventContent('standby', item.id, e.target.value)}
                 placeholder="Enter item details..."
               />
             )}
-            
+
             <div className="absolute top-2 right-2 flex gap-1">
               <button
                 onClick={() => copyToPlanned(item)}
