@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown, Settings } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 const IntraDayPlanner = () => {
   const [isDark, setIsDark] = useState(() => {
@@ -12,17 +13,39 @@ const IntraDayPlanner = () => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
+  const [startHour, setStartHour] = useState(() => {
+    const saved = localStorage.getItem('dayPlannerStartHour');
+    return saved ? parseInt(saved) : 8;
+  });
+
+  const [endHour, setEndHour] = useState(() => {
+    const saved = localStorage.getItem('dayPlannerEndHour');
+    return saved ? parseInt(saved) : 18;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dayPlannerStartHour', startHour.toString());
+    localStorage.setItem('dayPlannerEndHour', endHour.toString());
+  }, [startHour, endHour]);
+
   // Save dark mode preference whenever it changes
   useEffect(() => {
     localStorage.setItem('dayPlannerDarkMode', isDark);
   }, [isDark]);
 
-  const timeSlots = Array.from({ length: 20 }, (_, i) => {
-    const totalMinutes = i * 30 + (8 * 60); // Start from 8:00 AM
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours === 12 ? 12 : hours % 12}:${minutes.toString().padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
-  });
+  const timeSlots = useMemo(() => {
+    const slots = [];
+    const totalSlots = ((endHour - startHour) * 2) + 1; // 30-minute intervals
+
+    for (let i = 0; i < totalSlots; i++) {
+      const totalMinutes = i * 30 + (startHour * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      slots.push(`${hours === 12 ? 12 : hours % 12}:${minutes.toString().padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`);
+    }
+
+    return slots;
+  }, [startHour, endHour]);
 
   const colorOptions = [
     {
@@ -159,11 +182,28 @@ const IntraDayPlanner = () => {
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const totalMinutes = hours * 60 + minutes;
-    const startMinutes = 8 * 60; // 8 AM
-    const endMinutes = 18 * 60 - 30; // 5:30 PM
-    // 2% is 8:00, 86% is 17:30
-    const percentage = ((totalMinutes - startMinutes) / (endMinutes - startMinutes)) * 84 + 2;
-    return Math.min(Math.max(2, percentage), 86);
+    const top_pixel = 75;
+    const end_pixel = top_pixel + ((timeSlots.length - 1) * 30);
+    // Calculate start and end minutes of the day planner
+    const startMinutes = startHour * 60;
+    const endMinutes = endHour * 60;
+
+    // If time is before start or after end, clamp to limits
+    if (totalMinutes <= startMinutes) return top_pixel;
+    if (totalMinutes >= endMinutes) return end_pixel;
+
+    // Calculate position proportionally between top_pixel and end_pixel
+    return top_pixel + ((totalMinutes - startMinutes) / (endMinutes - startMinutes)) * (end_pixel - top_pixel);
+  };
+
+  const updateTimeSettings = (newStart, newEnd) => {
+    if (newStart >= newEnd) {
+      alert('Start time must be before end time');
+      return;
+    }
+
+    setStartHour(newStart);
+    setEndHour(newEnd);
   };
 
   const handleMouseDown = (e, timeSlot, column) => {
@@ -625,13 +665,25 @@ const IntraDayPlanner = () => {
       </div>
     );
   };
+  const isEventInRange = (event) => {
+    const [timeStr, period] = event.start.split(' ');
+    const [hours, minutes] = timeStr.split(':').map(Number);
 
+    let eventStartHour = hours;
+    if (period === 'PM' && hours !== 12) eventStartHour += 12;
+    if (period === 'AM' && hours === 12) eventStartHour = 0;
+
+    const eventStartMinutes = eventStartHour * 60 + minutes;
+    const startHourMinutes = startHour * 60;
+
+    return eventStartMinutes > startHourMinutes;
+  };
   const renderColumn = (columnType) => (
     <div className={`border rounded-lg p-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
       <h2 className={`text-xl font-semibold mb-4 text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
         {columnType === 'planned' ? 'Planned' : 'Reality'}
       </h2>
-      <div className="relative h-[600px]" ref={timeGridRef}>
+      <div className="relative" style={{ height: `${timeSlots.length * 30}px` }} ref={timeGridRef}>
         <div className="absolute -left-4 top-3 h-full">
           {timeSlots.map((time) => (
             <div key={time} className="h-[30px] flex items-center">
@@ -654,7 +706,7 @@ const IntraDayPlanner = () => {
         </div>
 
         {/* Events */}
-        {events[columnType].map(event => renderEvent(event, columnType))}
+        {events[columnType].filter(isEventInRange).map(event => renderEvent(event, columnType))}
 
         {/* Temporary event while dragging */}
         {tempEvent && tempEvent.column === columnType && (
@@ -695,8 +747,9 @@ const IntraDayPlanner = () => {
 
   const moveToPlanned = (standbyEvent, shouldCopy = false) => {
 
-    // Find first available time slot that can fit a 30-minute event
-    let startIndex = 0;
+    let startIndex = timeSlots.findIndex(slot => slot.startsWith(`${startHour}:`));
+    if (startIndex === -1) startIndex = 0; // Fallback if not found
+    startIndex += 1;
     while (startIndex < timeSlots.length - 1) {
       const hasOverlap = events.planned.some(event => {
         const eventStart = timeSlots.indexOf(event.start);
@@ -857,6 +910,49 @@ const IntraDayPlanner = () => {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Intra-day Planner</h1>
         <div className="flex gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className={`px-4 py-2 rounded flex items-center gap-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+              >
+                <Settings size={16} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className={`w-64 ${isDark ? 'bg-gray-800 text-gray-100 border-gray-700' : 'bg-white text-gray-900 border-gray-200'}`}
+            >
+              <div className="space-y-4">
+                <h3 className="font-medium">Time Range Settings</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm">Start Time:</label>
+                    <select
+                      value={startHour}
+                      onChange={(e) => updateTimeSettings(parseInt(e.target.value), endHour)}
+                      className={`p-1 rounded text-sm ${isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'} border`}
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i === 12 ? '12:00 PM' : i > 12 ? `${i - 12}:00 PM` : `${i}:00 AM`}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm">End Time:</label>
+                    <select
+                      value={endHour}
+                      onChange={(e) => updateTimeSettings(startHour, parseInt(e.target.value))}
+                      className={`p-1 rounded text-sm ${isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'} border`}
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i === 12 ? '12:00 PM' : i > 12 ? `${i - 12}:00 PM` : `${i}:00 AM`}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           <button
             onClick={() => setIsDark(!isDark)}
             className={`px-4 py-2 rounded flex items-center gap-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
@@ -887,8 +983,7 @@ const IntraDayPlanner = () => {
         <div
           className="absolute left-0 right-0 z-10 pointer-events-none"
           style={{
-            top: `calc(${getCurrentTimePosition()}% - 1px)`,
-            transform: 'translateY(64px)'
+            top: `${getCurrentTimePosition()}px`,
           }}
         >
           <div className="flex items-center w-full px-4">
