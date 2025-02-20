@@ -986,21 +986,25 @@ const IntraDayPlanner = () => {
             top: `${getCurrentTimePosition()}px`,
           }}
         >
-          <div className="flex items-center w-full px-4">
-            <div className="flex-1">
-              <div className="border-t-2 border-red-500 w-full" />
+          <div className="flex items-center w-full">
+            {/* Left line with padding to start more right */}
+            <div className="flex-1 ml-4">
+              <div className="border-t-2 border-red-500 w-[91%] ml-11" />
             </div>
-            <div className="w-4" />
-            <div className="flex-1 flex items-center">
-              <div className="border-t-2 border-red-500 flex-grow" />
-              <div className="bg-red-500 text-white text-sm px-2 py-1 rounded ml-2">
-                {formatTimeForDisplay(currentTime)}
-              </div>
+            
+            {/* Time box with original positioning */}
+            <div className="bg-red-500 text-white text-sm px-0.5 py-1 rounded mr-4 -ml-4">
+              {formatTimeForDisplay(currentTime)}
+            </div>
+            
+            {/* Right line */}
+            <div className="flex-1 mr-4">
+              <div className="border-t-2 border-red-500 w-[91%] ml-11" />
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-8">
           {renderColumn('planned')}
           {renderColumn('reality')}
         </div>
