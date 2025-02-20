@@ -544,7 +544,7 @@ const IntraDayPlanner = () => {
     updateConnections();
     window.addEventListener('resize', updateConnections);
     return () => window.removeEventListener('resize', updateConnections);
-  }, [events]);
+  }, [events, startHour, endHour]);
 
   const moveToStandby = (event) => {
     // Create new standby item
