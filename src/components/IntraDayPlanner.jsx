@@ -512,9 +512,9 @@ const IntraDayPlanner = () => {
     // Calculate relative positions, accounting for the two-column layout
     return {
       x1: colWidth + 8,
-      y1: (plannedRect.top - gridRect.top) + (plannedRect.height / 2) + 64,
-      x2: colWidth + 48,
-      y2: (realityRect.top - gridRect.top) + (realityRect.height / 2) + 64
+      y1: (plannedRect.top - gridRect.top) + (plannedRect.height / 2) + 60,
+      x2: colWidth + 123,
+      y2: (realityRect.top - gridRect.top) + (realityRect.height / 2) + 60
     };
   }
   const [connections, setConnections] = useState([]);
@@ -1017,11 +1017,11 @@ const IntraDayPlanner = () => {
               <path
                 d={`M ${conn.x1} ${conn.y1} C ${conn.x1 + 20} ${conn.y1}, ${conn.x2 - 20} ${conn.y2}, ${conn.x2} ${conn.y2}`}
                 stroke="#8884"
-                strokeWidth="1.5"
+                strokeWidth="3"
                 fill="none"
               />
               <path
-                d={`M ${conn.x2} ${conn.y2} L ${conn.x2 - 5} ${conn.y2 - 3} L ${conn.x2 - 5} ${conn.y2 + 3} Z`}
+                d={`M ${conn.x2 + 8} ${conn.y2} L ${conn.x2} ${conn.y2 - 5} L ${conn.x2} ${conn.y2 + 5} Z`}
                 fill="#8884"
               />
             </g>
