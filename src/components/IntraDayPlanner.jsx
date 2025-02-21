@@ -908,7 +908,22 @@ const IntraDayPlanner = () => {
       onMouseLeave={handleMouseUp}
     >
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Intra-day Planner</h1>
+        <div className="flex items-center gap-3">
+          <a href="http://catlendar.online">
+            <img
+              src="/logo2.svg"
+              alt="Catlendar.online Logo"
+              className={`rounded ${isDark ? 'invert' : ''}`}
+            />
+          </a>
+          <div className="w-fit">
+            <img
+              src="/logo1.svg"
+              alt="Catlendar.online Logo"
+              className={`rounded w-1/2 ${isDark ? 'invert' : ''}`}
+            />
+          </div>
+        </div>
         <div className="flex gap-2">
           <Popover>
             <PopoverTrigger asChild>
@@ -991,12 +1006,12 @@ const IntraDayPlanner = () => {
             <div className="flex-1 ml-4">
               <div className="border-t-2 border-red-500 w-[91%] ml-11" />
             </div>
-            
+
             {/* Time box with original positioning */}
             <div className="bg-red-500 text-white text-sm px-0.5 py-1 rounded mr-4 -ml-4">
               {formatTimeForDisplay(currentTime)}
             </div>
-            
+
             {/* Right line */}
             <div className="flex-1 mr-4">
               <div className="border-t-2 border-red-500 w-[91%] ml-11" />
