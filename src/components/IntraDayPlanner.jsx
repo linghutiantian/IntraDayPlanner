@@ -718,7 +718,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         </div>
 
         {/* Grid lines */}
-        <div className="ml-2">
+        <div className="ml-12">
           {timeSlots.map((time) => (
             <div
               key={time}
