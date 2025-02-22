@@ -218,6 +218,37 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     setEndHour(newEnd);
   };
 
+  // Track touch events
+  const [touchStartY, setTouchStartY] = useState(null);
+  const [isTouching, setIsTouching] = useState(false);
+
+  // Handle touch events for mobile
+  const handleTouchStart = (e, timeSlot, column) => {
+    e.preventDefault(); // Prevent default touch behavior
+    setTouchStartY(e.touches[0].clientY);
+    setIsTouching(true);
+    handleMouseDown(e.touches[0], timeSlot, column);
+  };
+
+  const handleTouchMove = (e) => {
+    e.preventDefault();
+    if (!isTouching || !touchStartY) return;
+
+    const touchDelta = Math.abs(touch.clientY - touchStartY);
+    if (touchDelta > 5) {
+      handleMouseMove({
+        clientY: touch.clientY,
+        clientX: touch.clientX
+      });
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    e.preventDefault();
+    setIsTouching(false);
+    setTouchStartY(null);
+    handleMouseUp();
+  };
   const handleMouseDown = (e, timeSlot, column) => {
     if (e.target.classList.contains('resize-handle') || e.target.classList.contains('event-content')) return;
 
@@ -715,6 +746,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
               style={{ height: `${densityConfig[density]}px` }}
               className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
               onMouseDown={(e) => handleMouseDown(e, time, columnType)}
+              onTouchStart={(e) => handleTouchStart(e, time, columnType)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
             />
           ))}
         </div>
@@ -832,7 +866,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         <h2 className={`text-xl font-semibold text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
           Standby Items
         </h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={createStandbyItem}
             className={`px-3 py-1 rounded-lg flex items-center gap-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -951,6 +985,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     <div
       className={`max-w-6xl mx-auto p-4 shadow-lg rounded-lg ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
         }`}
+      style={{ minWidth: '640px' }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
@@ -972,7 +1007,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             />
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap  gap-2">
           <Popover>
             <PopoverTrigger asChild>
               <button
