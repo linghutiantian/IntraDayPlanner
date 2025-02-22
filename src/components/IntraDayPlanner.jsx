@@ -917,7 +917,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
               </div>
             ) : (
               <textarea
-                className={`w-full h-full min-h-24 resize-none bg-transparent pr-12 ${isDark ? 'text-gray-300 placeholder-gray-500' : 'text-gray-700 placeholder-gray-400'
+                className={`w-full h-full min-h-24 resize-none bg-transparent px-1 pr-5 ${isDark ? 'text-gray-300 placeholder-gray-500' : 'text-gray-700 placeholder-gray-400'
                   }`}
                 value={item.content}
                 onChange={(e) => updateEventContent('standby', item.id, e.target.value)}
@@ -925,7 +925,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
               />
             )}
 
-            <div className="absolute top-2 right-2 flex gap-1">
+            <div className="absolute top-2 right-2 flex flex-col gap-1">
               <button
                 onClick={() => moveToPlanned(item, true)}
                 className="text-gray-500 hover:text-gray-700"
