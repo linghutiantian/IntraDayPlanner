@@ -3,8 +3,6 @@ import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, Arrow
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 const IntraDayPlanner = ({ isDark, setIsDark }) => {
-  const [isEditing, setIsEditing] = useState(false);
-
   const [startHour, setStartHour] = useState(() => {
     const saved = localStorage.getItem('dayPlannerStartHour');
     return saved ? parseInt(saved) : 8;
@@ -39,7 +37,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const totalMinutes = i * 30 + (startHour * 60);
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;
-      slots.push(`${hours === 12 ? 12 : hours % 12}:${minutes.toString().padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`);
+      slots.push(`${hours === 0 || hours === 24 ? 12 : hours === 12 ? 12 : hours % 12}:${minutes.toString().padStart(2, '0')} ${hours < 12 || hours === 24 ? 'AM' : 'PM'}`);
     }
 
     return slots;
@@ -477,8 +475,6 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         value={event.content}
         onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
         placeholder="Enter event details..."
-        onFocus={() => setIsEditing(true)}
-        onBlur={() => setIsEditing(false)}
         onClick={(e) => e.stopPropagation()}
       />
     );
@@ -988,8 +984,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                       onChange={(e) => updateTimeSettings(startHour, parseInt(e.target.value))}
                       className={`p-1 rounded text-sm ${isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'} border`}
                     >
-                      {Array.from({ length: 24 }, (_, i) => (
-                        <option key={i} value={i}>{i === 12 ? '12:00 PM' : i > 12 ? `${i - 12}:00 PM` : `${i}:00 AM`}</option>
+                      {Array.from({ length: 25 }, (_, i) => (
+                        <option key={i} value={i}>{i === 12 ? '12:00 PM' : i > 12 && i < 24 ? `${i - 12}:00 PM` : i === 24 ? '12:00 AM' : `${i}:00 AM`}</option>
                       ))}
                     </select>
                   </div>
