@@ -761,37 +761,70 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   };
 
   const moveToPlanned = (standbyEvent, shouldCopy = false) => {
+    // Get current time
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
 
-    let startIndex = timeSlots.findIndex(slot => slot.startsWith(`${startHour}:`));
-    if (startIndex === -1) startIndex = 0; // Fallback if not found
-    startIndex += 1;
-    while (startIndex < timeSlots.length - 1) {
-      const hasOverlap = events.planned.some(event => {
+    // Find the next available 30-minute slot after current time
+    let startIndex = timeSlots.findIndex(slot => {
+      const [timeStr, period] = slot.split(' ');
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      let slotHours = hours;
+      if (period === 'PM' && hours !== 12) slotHours += 12;
+      if (period === 'AM' && hours === 12) slotHours = 0;
+
+      // Convert both times to minutes for comparison
+      const slotTotalMinutes = slotHours * 60 + minutes;
+      const currentTotalMinutes = currentHours * 60 + currentMinutes;
+
+      return slotTotalMinutes >= currentTotalMinutes;
+    });
+
+    // Function to check if a slot is available
+    const isSlotAvailable = (index) => {
+      return !events.planned.some(event => {
         const eventStart = timeSlots.indexOf(event.start);
         const eventEnd = timeSlots.indexOf(event.end);
-        return (startIndex <= eventEnd && (startIndex + 1) >= eventStart);
+        return (index <= eventEnd && index >= eventStart);
       });
+    };
 
-      if (!hasOverlap) {
-        const newEvent = {
-          id: Date.now(),
-          start: timeSlots[startIndex],
-          end: timeSlots[startIndex + 1],
-          content: standbyEvent.content,
-          colorIndex: standbyEvent.colorIndex,
-          isCheckboxMode: standbyEvent.isCheckboxMode
-        };
-
-        updateEventsWithHistory(prev => ({
-          ...prev,
-          planned: [...prev.planned, newEvent],
-          standby: shouldCopy ? prev.standby : prev.standby.filter(e => e.id !== standbyEvent.id)
-        }));
-        break;
+    // Look for first available slot
+    const findFirstAvailableSlot = (fromIndex) => {
+      for (let i = fromIndex; i < timeSlots.length; i++) {
+        if (isSlotAvailable(i)) {
+          return i;
+        }
       }
-      startIndex++;
+      return -1;
+    };
+
+    // Try to find a slot after current time
+    let availableSlot = startIndex !== -1 ? findFirstAvailableSlot(startIndex) : -1;
+
+    // If no slot found after current time, try from the beginning
+    if (availableSlot === -1) {
+      availableSlot = findFirstAvailableSlot(1);
     }
-  };
+
+    if (availableSlot !== -1) {
+      const newEvent = {
+        id: Date.now(),
+        start: timeSlots[availableSlot],
+        end: timeSlots[availableSlot],
+        content: standbyEvent.content,
+        colorIndex: standbyEvent.colorIndex,
+        isCheckboxMode: standbyEvent.isCheckboxMode
+      };
+
+      updateEventsWithHistory(prev => ({
+        ...prev,
+        planned: [...prev.planned, newEvent],
+        standby: shouldCopy ? prev.standby : prev.standby.filter(e => e.id !== standbyEvent.id)
+      }));
+    }
+  }
 
   const renderStandbySection = () => (
     <div className={`mt-8 border rounded-lg p-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
