@@ -2,17 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown, Settings } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
-const IntraDayPlanner = () => {
-  const [isDark, setIsDark] = useState(() => {
-    // First check localStorage for saved preference
-    const savedDarkMode = localStorage.getItem('dayPlannerDarkMode');
-    if (savedDarkMode !== null) {
-      return savedDarkMode === 'true';
-    }
-    // If no saved preference, use system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-
+const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const [startHour, setStartHour] = useState(() => {
     const saved = localStorage.getItem('dayPlannerStartHour');
     return saved ? parseInt(saved) : 8;
