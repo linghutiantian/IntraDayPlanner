@@ -13,10 +13,16 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     return saved ? parseInt(saved) : 18;
   });
 
+  const [density, setDensity] = useState(() => {
+    const saved = localStorage.getItem('dayPlannerDensity');
+    return saved || 'compact'; // 'compact', 'comfortable', 'spacious'
+  });
+
   useEffect(() => {
     localStorage.setItem('dayPlannerStartHour', startHour.toString());
     localStorage.setItem('dayPlannerEndHour', endHour.toString());
-  }, [startHour, endHour]);
+    localStorage.setItem('dayPlannerDensity', density);
+  }, [startHour, endHour, density]);
 
   // Save dark mode preference whenever it changes
   useEffect(() => {
@@ -36,6 +42,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     return slots;
   }, [startHour, endHour]);
+
+  const densityConfig = {
+    compact: 30,      // Dense view - 30px per slot
+    comfortable: 45,  // Moderate view - 45px per slot
+    spacious: 60     // Spacious view - 60px per slot
+  };
 
   const colorOptions = [
     {
@@ -173,7 +185,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const minutes = now.getMinutes();
     const totalMinutes = hours * 60 + minutes;
     const top_pixel = 75;
-    const end_pixel = top_pixel + ((timeSlots.length - 1) * 30);
+    const end_pixel = top_pixel + ((timeSlots.length - 1) * densityConfig[density]);
     // Calculate start and end minutes of the day planner
     const startMinutes = startHour * 60;
     const endMinutes = endHour * 60;
@@ -201,7 +213,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     const gridRect = timeGridRef.current.getBoundingClientRect();
     const relativeY = e.clientY - gridRect.top;
-    const slotIndex = Math.floor(relativeY / 30);
+    const slotIndex = Math.floor(relativeY / densityConfig[density]);
 
     if (slotIndex > 0 && slotIndex < timeSlots.length) {
       setIsDragging(true);
@@ -233,8 +245,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     if (!isDragging && !resizing && !movingEvent) return;
 
     const gridRect = timeGridRef.current.getBoundingClientRect();
-    const relativeY = Math.max(0, Math.min(e.clientY - gridRect.top, gridRect.height - 30));
-    const currentSlotIndex = Math.floor(relativeY / 30);
+    const relativeY = Math.max(0, Math.min(e.clientY - gridRect.top, gridRect.height - densityConfig[density]));
+    const currentSlotIndex = Math.floor(relativeY / densityConfig[density]);
 
     if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
       if (isDragging && tempEvent) {
@@ -534,7 +546,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     updateConnections();
     window.addEventListener('resize', updateConnections);
     return () => window.removeEventListener('resize', updateConnections);
-  }, [events, startHour, endHour]);
+  }, [events, startHour, endHour, density]);
 
   const moveToStandby = (event) => {
     // Create new standby item
@@ -556,8 +568,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const renderEvent = (event, columnType) => {
     const startIndex = timeSlots.indexOf(event.start);
     const endIndex = timeSlots.indexOf(event.end);
-    const height = `${(endIndex - startIndex + 1) * 30}px`;
-    const top = `${startIndex * 30}px`;
+    const height = `${(endIndex - startIndex + 1) * densityConfig[density]}px`;
+    const top = `${startIndex * densityConfig[density]}px`;
 
     return (
       <div
@@ -673,10 +685,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       <h2 className={`text-xl font-semibold mb-4 text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
         {columnType === 'planned' ? 'Planned' : 'Reality'}
       </h2>
-      <div className="relative" style={{ height: `${timeSlots.length * 30}px` }} ref={timeGridRef}>
-        <div className="absolute -left-4 top-3 h-full">
+      <div className="relative" style={{ height: `${timeSlots.length * densityConfig[density]}px` }} ref={timeGridRef}>
+
+        <div className={`absolute -left-4 ${density === 'compact' ? 'top-3' : density === 'comfortable' ? 'top-5' : 'top-7'} h-full`}>
           {timeSlots.map((time) => (
-            <div key={time} className="h-[30px] flex items-center">
+            <div key={time} style={{ height: `${densityConfig[density]}px` }} className="flex items-center">
               <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} select-none`}>
                 {time}
               </span>
@@ -689,7 +702,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           {timeSlots.map((time) => (
             <div
               key={time}
-              className={`h-[30px] border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+              style={{ height: `${densityConfig[density]}px` }}
+              className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
               onMouseDown={(e) => handleMouseDown(e, time, columnType)}
             />
           ))}
@@ -703,8 +717,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           <div
             className={`absolute left-12 right-2 ${colorOptions[lastColorIndex].class} border rounded opacity-50`}
             style={{
-              top: `${timeSlots.indexOf(tempEvent.start) * 30}px`,
-              height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start) + 1) * 30}px`
+              top: `${timeSlots.indexOf(tempEvent.start) * densityConfig[density]}px`,
+              height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start) + 1) * densityConfig[density]}px`
+
             }}
           />
         )}
@@ -953,6 +968,21 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                         <option key={i} value={i}>{i === 12 ? '12:00 PM' : i > 12 ? `${i - 12}:00 PM` : `${i}:00 AM`}</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-2 mt-4">
+                    <h3 className="font-medium">Time Slot Height</h3>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm">Density:</label>
+                      <select
+                        value={density}
+                        onChange={(e) => setDensity(e.target.value)}
+                        className={`p-1 rounded text-sm ${isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'} border`}
+                      >
+                        <option value="compact">Compact</option>
+                        <option value="comfortable">Comfortable</option>
+                        <option value="spacious">Spacious</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
