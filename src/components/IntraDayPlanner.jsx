@@ -181,16 +181,6 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const savedDarkMode = localStorage.getItem('dayPlannerDarkMode');
-    if (savedDarkMode === null) {
-      const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      const handleChange = (e) => setIsDark(e.matches);
-      darkModeMediaQuery.addEventListener('change', handleChange);
-      return () => darkModeMediaQuery.removeEventListener('change', handleChange);
-    }
-  }, []);
-
   const formatTimeForDisplay = (date) => {
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',

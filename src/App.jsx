@@ -4,10 +4,7 @@ import IntraDayPlanner from './components/IntraDayPlanner'
 function App() {
   const [isDark, setIsDark] = useState(() => {
     const savedDarkMode = localStorage.getItem('dayPlannerDarkMode');
-    if (savedDarkMode !== null) {
-      return savedDarkMode === 'true';
-    }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return savedDarkMode ? savedDarkMode === 'true' : false;
   });
 
   useEffect(() => {
