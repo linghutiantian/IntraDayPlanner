@@ -3,6 +3,8 @@ import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, Arrow
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 const IntraDayPlanner = ({ isDark, setIsDark }) => {
+  const [isEditing, setIsEditing] = useState(false);
+
   const [startHour, setStartHour] = useState(() => {
     const saved = localStorage.getItem('dayPlannerStartHour');
     return saved ? parseInt(saved) : 8;
@@ -110,6 +112,26 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const [movingEvent, setMovingEvent] = useState(null);
   const [openColorPicker, setOpenColorPicker] = useState(null);
   const timeGridRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Handle Undo shortcut
+      if (!e.target.tagName.match(/^(INPUT|TEXTAREA)$/) && (e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Handle ESC to exit text editing
+      if (e.key === 'Escape' && e.target.tagName.match(/^(INPUT|TEXTAREA)$/)) {
+        e.preventDefault();
+        e.target.blur();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex]);
 
   const updateEventsWithHistory = (newEventsOrUpdater) => {
     // Calculate new events state
@@ -455,6 +477,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         value={event.content}
         onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
         placeholder="Enter event details..."
+        onFocus={() => setIsEditing(true)}
+        onBlur={() => setIsEditing(false)}
         onClick={(e) => e.stopPropagation()}
       />
     );
