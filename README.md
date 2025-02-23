@@ -1,7 +1,11 @@
+### Preview
+
+[https://catlendar.online/](https://catlendar.online/)
+
 ### Install dependencies:
 
 ```
-npm install lucide-react tailwindcss postcss autoprefixer
+npm install
 ```
 
 
