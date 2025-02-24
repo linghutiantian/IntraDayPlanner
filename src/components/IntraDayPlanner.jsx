@@ -374,6 +374,15 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const startIndex = timeSlots.indexOf(tempEvent.start);
       const endIndex = timeSlots.indexOf(tempEvent.end);
 
+      // Prevent creating zero duration
+      if (startIndex > endIndex) {
+        setIsDragging(false);
+        setDragStart(null);
+        setCurrentColumn(null);
+        setTempEvent(null);
+        return;
+      }
+
       // Allow creation of 30-minute events (when start equals end)
       const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
         const eventStart = timeSlots.indexOf(event.start);
