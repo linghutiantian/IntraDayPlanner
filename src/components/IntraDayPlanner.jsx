@@ -237,36 +237,178 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   };
 
   // Track touch events
+
   const [touchStartY, setTouchStartY] = useState(null);
   const [isTouching, setIsTouching] = useState(false);
+  const [touchInfo, setTouchInfo] = useState(null);
 
   // Handle touch events for mobile
   const handleTouchStart = (e, timeSlot, column) => {
-    e.preventDefault(); // Prevent default touch behavior
-    setTouchStartY(e.touches[0].clientY);
+    const touch = e.touches[0];
+    const gridRect = timeGridRef.current.getBoundingClientRect();
+    const relativeY = touch.clientY - gridRect.top;
+
+    setTouchStartY(touch.clientY);
     setIsTouching(true);
-    handleMouseDown(e.touches[0], timeSlot, column);
-  };
+    setTouchInfo({ initialY: touch.clientY, timeSlot, column });
 
-  const handleTouchMove = (e) => {
-    e.preventDefault();
-    if (!isTouching || !touchStartY) return;
-
-    const touchDelta = Math.abs(touch.clientY - touchStartY);
-    if (touchDelta > 5) {
-      handleMouseMove({
-        clientY: touch.clientY,
-        clientX: touch.clientX
+    // Handle grid touch start
+    const slotIndex = Math.floor(relativeY / densityConfig[density]);
+    if (slotIndex > 0 && slotIndex < timeSlots.length) {
+      setIsDragging(true);
+      setDragStart({ slot: timeSlots[slotIndex], y: touch.clientY });
+      setCurrentColumn(column);
+      setTempEvent({
+        start: timeSlots[slotIndex],
+        end: timeSlots[slotIndex],
+        column
       });
     }
   };
 
+  const handleTouchMove = (e) => {
+    if (!isTouching) return;
+
+    const touch = e.touches[0];
+
+    // Calculate the movement delta
+    if (dragStart) {
+      const deltaY = touch.clientY - dragStart.y;
+      const slotDelta = Math.round(deltaY / densityConfig[density]);
+    }
+    const gridRect = timeGridRef.current.getBoundingClientRect();
+    const relativeY = Math.max(0, Math.min(touch.clientY - gridRect.top, gridRect.height - densityConfig[density]));
+    const currentSlotIndex = Math.floor(relativeY / densityConfig[density]);
+
+    // Handle grid touch move
+    if (isDragging && tempEvent && currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
+      setTempEvent(prev => ({
+        ...prev,
+        end: timeSlots[currentSlotIndex]
+      }));
+    }
+
+    // Handle event resizing
+    if (resizing && currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
+      const { event, edge, columnType } = resizing;
+      const newStart = edge === 'top' ? timeSlots[currentSlotIndex] : event.start;
+      const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex] : event.end;
+
+      if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
+        const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
+          if (otherEvent.id === event.id) return false;
+          return (timeSlots.indexOf(newStart) <= timeSlots.indexOf(otherEvent.end) &&
+            timeSlots.indexOf(newEnd) >= timeSlots.indexOf(otherEvent.start));
+        });
+
+        if (!hasOverlap) {
+          updateEventsWithHistory(prev => ({
+            ...prev,
+            [columnType]: {
+              ...prev[columnType],
+              [selectedDate]: (prev[columnType][selectedDate] || []).map(evt =>
+                evt.id === event.id ? { ...evt, start: newStart, end: newEnd } : evt
+              )
+            }
+          }));
+        }
+      }
+    }
+
+    // Handle event moving
+    if (movingEvent && currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
+      const { event, offsetY } = movingEvent;
+      const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
+      const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
+      const newEndIndex = newStartIndex + eventDuration;
+
+      const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
+        if (otherEvent.id === event.id) return false;
+        const otherStart = timeSlots.indexOf(otherEvent.start);
+        const otherEnd = timeSlots.indexOf(otherEvent.end);
+        return (newStartIndex <= otherEnd && newEndIndex >= otherStart);
+      });
+
+      if (!hasOverlap) {
+        updateEventsWithHistory(prev => ({
+          ...prev,
+          [movingEvent.columnType]: {
+            ...prev[movingEvent.columnType],
+            [selectedDate]: prev[movingEvent.columnType][selectedDate].map(evt =>
+              evt.id === event.id ? {
+                ...evt,
+                start: timeSlots[newStartIndex],
+                end: timeSlots[newEndIndex]
+              } : evt
+            )
+          }
+        }));
+      }
+    }
+  };
+
   const handleTouchEnd = (e) => {
-    e.preventDefault();
+    if (isDragging && tempEvent) {
+      const startIndex = timeSlots.indexOf(tempEvent.start);
+      const endIndex = timeSlots.indexOf(tempEvent.end);
+
+      if (startIndex <= endIndex) {
+        const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
+          const eventStart = timeSlots.indexOf(event.start);
+          const eventEnd = timeSlots.indexOf(event.end);
+          return (startIndex <= eventEnd && endIndex >= eventStart);
+        });
+
+        if (!hasOverlap) {
+          const newEventId = Date.now();
+          updateEventsWithHistory(prev => ({
+            ...prev,
+            [tempEvent.column]: {
+              ...prev[tempEvent.column],
+              [selectedDate]: [...(prev[tempEvent.column][selectedDate] || []), {
+                id: newEventId,
+                start: tempEvent.start,
+                end: tempEvent.end,
+                content: '',
+                colorIndex: lastColorIndex
+              }]
+            }
+          }));
+        }
+      }
+    }
+
     setIsTouching(false);
     setTouchStartY(null);
-    handleMouseUp();
+    setTouchInfo(null);
+    setIsDragging(false);
+    setDragStart(null);
+    setCurrentColumn(null);
+    setTempEvent(null);
+    setResizing(null);
+    setMovingEvent(null);
   };
+
+  const handleEventTouchStart = (e, event, edge, columnType) => {
+    e.stopPropagation();
+    setResizing({ event, edge, columnType });
+    setTouchStartY(e.touches[0].clientY);
+  };
+
+  const handleEventMoveTouchStart = (e, event, columnType) => {
+    e.stopPropagation();
+    if (e.target.classList.contains('resize-handle')) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetY = e.touches[0].clientY - rect.top;
+    setMovingEvent({
+      event,
+      columnType,
+      offsetY
+    });
+    setTouchStartY(e.touches[0].clientY);
+  };
+
   const handleMouseDown = (e, timeSlot, column) => {
     if (e.target.classList.contains('resize-handle') || e.target.classList.contains('event-content')) return;
 
@@ -326,7 +468,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           });
 
           if (!hasOverlap) {
-            setEvents(prev => ({
+            updateEventsWithHistory(prev => ({
               ...prev,
               [columnType]: {
                 ...prev[columnType],
@@ -715,12 +857,15 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         key={event.id}
         data-event-id={event.id}
         className={`absolute left-12 right-2 ${colorOptions[event.colorIndex || 0].class} border rounded cursor-move`}
-        style={{ top, height }}
+        style={{ top, height, touchAction: 'none' }}
         onMouseDown={(e) => startEventMove(e, event, columnType)}
+        onTouchStart={(e) => handleEventMoveTouchStart(e, event, columnType)}
       >
         <div
           className="absolute top-0 left-0 right-0 h-2 cursor-n-resize resize-handle hover:bg-gray-400/20 z-10"
+          style={{ touchAction: 'none' }}
           onMouseDown={(e) => handleResizeStart(e, event, 'top', columnType)}
+          onTouchStart={(e) => handleEventTouchStart(e, event, 'top', columnType)}
         />
         <div className="absolute inset-0 pt-0 pb-0 px-2 event-content">
           <div className="relative h-full">
@@ -801,7 +946,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         </div>
         <div
           className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize resize-handle hover:bg-gray-400/20 z-10"
+          style={{ touchAction: 'none' }}
           onMouseDown={(e) => handleResizeStart(e, event, 'bottom', columnType)}
+          onTouchStart={(e) => handleEventTouchStart(e, event, 'bottom', columnType)}
         />
       </div>
     );
@@ -824,7 +971,13 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       <h2 className={`text-xl font-semibold mb-4 text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
         {columnType === 'planned' ? 'Planned' : 'Reality'}
       </h2>
-      <div className="relative" style={{ height: `${timeSlots.length * densityConfig[density]}px` }} ref={timeGridRef}>
+      <div className="relative" style={{
+        height: `${timeSlots.length * densityConfig[density]}px`,
+        touchAction: 'none'
+      }} ref={timeGridRef}
+        onTouchMove={(e) => { e.stopPropagation(); handleTouchMove(e); }}
+        onTouchEnd={(e) => { e.stopPropagation(); handleTouchEnd(e); }}
+      >
 
         <div className={`absolute -left-4 ${density === 'compact' ? 'top-3' : density === 'comfortable' ? 'top-5' : 'top-7'} h-full`}>
           {timeSlots.map((time) => (
@@ -841,12 +994,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           {timeSlots.map((time) => (
             <div
               key={time}
-              style={{ height: `${densityConfig[density]}px` }}
+              style={{ height: `${densityConfig[density]}px`, touchAction: 'none' }}
               className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
               onMouseDown={(e) => handleMouseDown(e, time, columnType)}
               onTouchStart={(e) => handleTouchStart(e, time, columnType)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
             />
           ))}
         </div>
