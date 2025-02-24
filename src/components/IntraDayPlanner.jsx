@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown, Settings } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown, Settings, Calendar } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import DatePicker from './DatePicker';
+
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const [startHour, setStartHour] = useState(() => {
@@ -16,6 +24,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const [density, setDensity] = useState(() => {
     const saved = localStorage.getItem('dayPlannerDensity');
     return saved || 'compact'; // 'compact', 'comfortable', 'spacious'
+  });
+
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    return formatDate(today);
   });
 
   useEffect(() => {
@@ -79,7 +92,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const [lastColorIndex, setLastColorIndex] = useState(0); // Default to blue (index 0)
 
-  const initialEvents = { planned: [], reality: [], standby: [] };
+  const initialEvents = { planned: {}, reality: {}, standby: [] };
 
   // State management
   const [events, setEvents] = useState(() => {
@@ -87,11 +100,16 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     if (saved) {
       const parsedEvents = JSON.parse(saved);
       // Ensure standby array exists in saved data
-      return {
-        ...initialEvents,
-        ...parsedEvents,
+      const newFormat = {
+        planned: typeof parsedEvents.planned === 'object' && !Array.isArray(parsedEvents.planned)
+          ? parsedEvents.planned
+          : { [selectedDate]: parsedEvents.planned || [] },
+        reality: typeof parsedEvents.reality === 'object' && !Array.isArray(parsedEvents.reality)
+          ? parsedEvents.reality
+          : { [selectedDate]: parsedEvents.reality || [] },
         standby: parsedEvents.standby || []
       };
+      return newFormat;
     }
     return initialEvents;
   });
@@ -301,7 +319,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex] : event.end;
 
         if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
-          const hasOverlap = events[columnType].some(otherEvent => {
+          const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
             if (otherEvent.id === event.id) return false;
             return (timeSlots.indexOf(newStart) <= timeSlots.indexOf(otherEvent.end) &&
               timeSlots.indexOf(newEnd) >= timeSlots.indexOf(otherEvent.start));
@@ -310,9 +328,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           if (!hasOverlap) {
             setEvents(prev => ({
               ...prev,
-              [columnType]: prev[columnType].map(evt =>
-                evt.id === event.id ? { ...evt, start: newStart, end: newEnd } : evt
-              )
+              [columnType]: {
+                ...prev[columnType],
+                [selectedDate]: (prev[columnType][selectedDate] || []).map(evt =>
+                  evt.id === event.id ? { ...evt, start: newStart, end: newEnd } : evt
+                )
+              }
             }));
           }
         }
@@ -322,7 +343,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / 30), timeSlots.length - eventDuration - 1));
         const newEndIndex = newStartIndex + eventDuration;
 
-        const hasOverlap = events[movingEvent.columnType].some(otherEvent => {
+        const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
           if (otherEvent.id === event.id) return false;
           const otherStart = timeSlots.indexOf(otherEvent.start);
           const otherEnd = timeSlots.indexOf(otherEvent.end);
@@ -332,13 +353,16 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         if (!hasOverlap) {
           setEvents(prev => ({
             ...prev,
-            [movingEvent.columnType]: prev[movingEvent.columnType].map(evt =>
-              evt.id === event.id ? {
-                ...evt,
-                start: timeSlots[newStartIndex],
-                end: timeSlots[newEndIndex]
-              } : evt
-            )
+            [movingEvent.columnType]: {
+              ...prev[movingEvent.columnType],
+              [selectedDate]: (prev[movingEvent.columnType][selectedDate] || []).map(evt =>
+                evt.id === event.id ? {
+                  ...evt,
+                  start: timeSlots[newStartIndex],
+                  end: timeSlots[newEndIndex]
+                } : evt
+              )
+            }
           }));
         }
       }
@@ -351,7 +375,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const endIndex = timeSlots.indexOf(tempEvent.end);
 
       // Allow creation of 30-minute events (when start equals end)
-      const hasOverlap = events[tempEvent.column].some(event => {
+      const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
         const eventStart = timeSlots.indexOf(event.start);
         const eventEnd = timeSlots.indexOf(event.end);
         return (startIndex <= eventEnd && endIndex >= eventStart);
@@ -369,7 +393,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
         updateEventsWithHistory(prev => ({
           ...prev,
-          [tempEvent.column]: [...prev[tempEvent.column], newEvent]
+          [tempEvent.column]: {
+            ...prev[tempEvent.column],
+            [selectedDate]: [...(prev[tempEvent.column][selectedDate] || []), newEvent]
+          }
         }));
 
         // Set a timeout to allow the DOM to update before focusing
@@ -404,41 +431,79 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const updateEventContent = (columnType, eventId, newContent) => {
     updateEventsWithHistory(prev => ({
       ...prev,
-      [columnType]: prev[columnType].map(event =>
-        event.id === eventId ? { ...event, content: newContent } : event
-      )
+      [columnType]: columnType === 'standby'
+        ? prev.standby.map(event =>
+          event.id === eventId ? { ...event, content: newContent } : event
+        )
+        : {
+          ...prev[columnType],
+          [selectedDate]: (prev[columnType][selectedDate] || []).map(event =>
+            event.id === eventId ? { ...event, content: newContent } : event
+          )
+        }
     }));
   };
 
   const toggleEventMode = (columnType, eventId) => {
     updateEventsWithHistory(prev => ({
       ...prev,
-      [columnType]: prev[columnType].map(event =>
-        event.id === eventId ? {
-          ...event,
-          isCheckboxMode: !event.isCheckboxMode
-        } : event
-      )
+      [columnType]: columnType === 'standby'
+        ? prev.standby.map(event =>
+          event.id === eventId ? {
+            ...event,
+            isCheckboxMode: !event.isCheckboxMode
+          } : event
+        )
+        : {
+          ...prev[columnType],
+          [selectedDate]: (prev[columnType][selectedDate] || []).map(event =>
+            event.id === eventId ? {
+              ...event,
+              isCheckboxMode: !event.isCheckboxMode
+            } : event
+          )
+        }
     }));
   };
 
   const deleteEvent = (columnType, eventId) => {
-    updateEventsWithHistory(prev => ({
-      ...prev,
-      [columnType]: prev[columnType].filter(event => event.id !== eventId)
-    }));
+    if (columnType === 'standby') {
+      updateEventsWithHistory(prev => ({
+        ...prev,
+        standby: prev.standby.filter(event => event.id !== eventId)
+      }));
+    } else {
+      updateEventsWithHistory(prev => ({
+        ...prev,
+        [columnType]: {
+          ...prev[columnType],
+          [selectedDate]: (prev[columnType][selectedDate] || [])
+            .filter(event => event.id !== eventId)
+        }
+      }));
+    }
   };
 
   const updateEventColor = (columnType, eventId, colorIndex) => {
     setLastColorIndex(colorIndex); // Store the last used color index
     updateEventsWithHistory(prev => ({
       ...prev,
-      [columnType]: prev[columnType].map(event =>
-        event.id === eventId ? {
-          ...event,
-          colorIndex
-        } : event
-      )
+      [columnType]: columnType === 'standby'
+        ? prev.standby.map(event =>
+          event.id === eventId ? {
+            ...event,
+            colorIndex
+          } : event
+        )
+        : {
+          ...prev[columnType],
+          [selectedDate]: (prev[columnType][selectedDate] || []).map(event =>
+            event.id === eventId ? {
+              ...event,
+              colorIndex
+            } : event
+          )
+        }
     }));
     setOpenColorPicker(null);
   };
@@ -446,8 +511,14 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const resetPlanner = () => {
     updateEventsWithHistory(prev => ({
       ...prev,
-      planned: [],
-      reality: []
+      planned: {
+        ...prev.planned,
+        [selectedDate]: []
+      },
+      reality: {
+        ...prev.reality,
+        [selectedDate]: []
+      }
     }));
   };
 
@@ -456,6 +527,18 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       ...prev,
       standby: []
     }));
+  };
+
+  const renderDatePicker = () => (
+    <DatePicker
+      selectedDate={selectedDate}
+      setSelectedDate={setSelectedDate}
+      isDark={isDark}
+    />
+  );
+
+  const getCurrentEvents = (type) => {
+    return events[type][selectedDate] || [];
   };
 
   const renderEventContent = (event, columnType) => {
@@ -510,7 +593,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     // Try to find a non-overlapping slot
     while (!found && newStartIndex < timeSlots.length - eventDuration) {
       const newEndIndex = newStartIndex + eventDuration;
-      const hasOverlap = events.reality.some(existingEvent => {
+      const hasOverlap = (events.reality[selectedDate] || []).some(existingEvent => {
         const existingStart = timeSlots.indexOf(existingEvent.start);
         const existingEnd = timeSlots.indexOf(existingEvent.end);
         return (newStartIndex <= existingEnd && newEndIndex >= existingStart);
@@ -534,7 +617,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
       updateEventsWithHistory(prev => ({
         ...prev,
-        reality: [...prev.reality, newEvent]
+        reality: {
+          ...prev.reality,
+          [selectedDate]: [...(prev.reality[selectedDate] || []), newEvent]
+        }
       }));
     }
   };
@@ -565,10 +651,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   // Update connections when events change or on window resize
   useEffect(() => {
     const updateConnections = () => {
-      const newConnections = events.reality
+      const newConnections = getCurrentEvents('reality')
         .filter(realityEvent => realityEvent.sourceId)
         .map(realityEvent => {
-          const plannedEvent = events.planned.find(p => p.id === realityEvent.sourceId);
+          const plannedEvent = getCurrentEvents('planned').find(p => p.id === realityEvent.sourceId);
           if (!plannedEvent) return null;
 
           const points = calculateConnectionPoints(plannedEvent, realityEvent);
@@ -587,7 +673,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     updateConnections();
     window.addEventListener('resize', updateConnections);
     return () => window.removeEventListener('resize', updateConnections);
-  }, [events, startHour, endHour, density]);
+  }, [events, startHour, endHour, density, selectedDate]);
 
   const moveToStandby = (event) => {
     // Create new standby item
@@ -602,7 +688,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     updateEventsWithHistory(prev => ({
       ...prev,
       standby: [...prev.standby, standbyItem],
-      planned: prev.planned.filter(e => e.id !== event.id)
+      planned: {
+        ...prev.planned,
+        [selectedDate]: (prev.planned[selectedDate] || []).filter(e => e.id !== event.id)
+      }
     }));
   };
 
@@ -754,7 +843,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         </div>
 
         {/* Events */}
-        {events[columnType].filter(isEventInRange).map(event => renderEvent(event, columnType))}
+        {getCurrentEvents(columnType).filter(isEventInRange).map(event => renderEvent(event, columnType))}
 
         {/* Temporary event while dragging */}
         {tempEvent && tempEvent.column === columnType && (
@@ -817,7 +906,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     // Function to check if a slot is available
     const isSlotAvailable = (index) => {
-      return !events.planned.some(event => {
+      const plannedEvents = events.planned[selectedDate] || [];
+      return !plannedEvents.some(event => {
         const eventStart = timeSlots.indexOf(event.start);
         const eventEnd = timeSlots.indexOf(event.end);
         return (index <= eventEnd && index >= eventStart);
@@ -854,7 +944,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
       updateEventsWithHistory(prev => ({
         ...prev,
-        planned: [...prev.planned, newEvent],
+        planned: {
+          ...prev.planned,
+          [selectedDate]: [...(prev.planned[selectedDate] || []), newEvent]
+        },
         standby: shouldCopy ? prev.standby : prev.standby.filter(e => e.id !== standbyEvent.id)
       }));
     }
@@ -1008,6 +1101,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           </div>
         </div>
         <div className="flex flex-wrap  gap-2">
+          {renderDatePicker()}
           <Popover>
             <PopoverTrigger asChild>
               <button
@@ -1086,7 +1180,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             onClick={resetPlanner}
             className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
           >
-            Reset Planner
+            Clear Day
           </button>
         </div>
       </div>
