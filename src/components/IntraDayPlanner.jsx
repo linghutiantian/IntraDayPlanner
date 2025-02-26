@@ -32,7 +32,281 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     return formatDate(today);
   });
 
-  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  // Add these state variables to your component's state
+  const [touchTimer, setTouchTimer] = useState(null);
+  const [touchStartPosition, setTouchStartPosition] = useState(null);
+  const [touchDragStart, setTouchDragStart] = useState(null);
+  const [touchStartTime, setTouchStartTime] = useState(null);
+  const LONG_PRESS_DURATION = 500; // milliseconds
+
+  // Add these functions to handle touch events
+
+  const handleTouchStart = (e, timeSlot, column) => {
+    // Only prevent default if we're not interacting with a button or other interactive element
+
+    const touch = e.touches[0];
+    const gridRect = timeGridRef.current.getBoundingClientRect();
+    const relativeY = touch.clientY - gridRect.top;
+
+    // Store the initial touch position
+    setTouchStartPosition({
+      x: touch.clientX,
+      y: touch.clientY,
+      relativeY: relativeY
+    });
+
+    // Start a timer for long press
+    const timer = setTimeout(() => {
+      // Long press detected - create event
+      const slotIndex = Math.floor(relativeY / densityConfig[density]);
+
+      if (slotIndex > 0 && slotIndex < timeSlots.length) {
+        setTouchDragStart(timeSlots[slotIndex]);
+        setCurrentColumn(column);
+
+        setTempEvent({
+          start: timeSlots[slotIndex],
+          end: timeSlots[slotIndex],
+          column
+        });
+      }
+    }, LONG_PRESS_DURATION);
+
+    setTouchTimer(timer);
+    setTouchStartTime(Date.now());
+  };
+
+  const handleTouchMove = (e) => {
+    // Only prevent default if we're actively dragging or resizing
+    if (!touchStartPosition) return;
+
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartPosition.x;
+    const dy = touch.clientY - touchStartPosition.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // If movement is detected before long press completes, cancel the timer
+    if (touchTimer && distance > 10) {
+      clearTimeout(touchTimer);
+      setTouchTimer(null);
+    }
+
+    // Handle event resizing if in resize mode
+    if (resizing) {
+      const gridRect = timeGridRef.current.getBoundingClientRect();
+      const relativeY = Math.max(0, Math.min(touch.clientY - gridRect.top, gridRect.height - densityConfig[density]));
+      const currentSlotIndex = Math.floor(relativeY / densityConfig[density]);
+
+      if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
+        const { event, edge, columnType } = resizing;
+        const newStart = edge === 'top' ? timeSlots[currentSlotIndex] : event.start;
+        const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex] : event.end;
+
+        if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
+          const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
+            if (otherEvent.id === event.id) return false;
+            return (timeSlots.indexOf(newStart) <= timeSlots.indexOf(otherEvent.end) &&
+              timeSlots.indexOf(newEnd) >= timeSlots.indexOf(otherEvent.start));
+          });
+
+          if (!hasOverlap) {
+            setEvents(prev => ({
+              ...prev,
+              [columnType]: {
+                ...prev[columnType],
+                [selectedDate]: (prev[columnType][selectedDate] || []).map(evt =>
+                  evt.id === event.id ? { ...evt, start: newStart, end: newEnd } : evt
+                )
+              }
+            }));
+          }
+        }
+      }
+      return;
+    }
+
+    // Handle event moving
+    if (movingEvent) {
+      const gridRect = timeGridRef.current.getBoundingClientRect();
+      const relativeY = Math.max(0, Math.min(touch.clientY - gridRect.top, gridRect.height - densityConfig[density]));
+      const currentSlotIndex = Math.floor(relativeY / densityConfig[density]);
+
+      if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
+        const { event, offsetY } = movingEvent;
+        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
+        const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
+        const newEndIndex = newStartIndex + eventDuration;
+
+        const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
+          if (otherEvent.id === event.id) return false;
+          const otherStart = timeSlots.indexOf(otherEvent.start);
+          const otherEnd = timeSlots.indexOf(otherEvent.end);
+          return (newStartIndex <= otherEnd && newEndIndex >= otherStart);
+        });
+
+        if (!hasOverlap) {
+          setEvents(prev => ({
+            ...prev,
+            [movingEvent.columnType]: {
+              ...prev[movingEvent.columnType],
+              [selectedDate]: (prev[movingEvent.columnType][selectedDate] || []).map(evt =>
+                evt.id === event.id ? {
+                  ...evt,
+                  start: timeSlots[newStartIndex],
+                  end: timeSlots[newEndIndex]
+                } : evt
+              )
+            }
+          }));
+        }
+      }
+      return;
+    }
+
+    // Handle event creation (drag to define size)
+    if (tempEvent) {
+      const gridRect = timeGridRef.current.getBoundingClientRect();
+      const relativeY = Math.max(0, Math.min(touch.clientY - gridRect.top, gridRect.height - densityConfig[density]));
+      const currentSlotIndex = Math.floor(relativeY / densityConfig[density]);
+
+      if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
+        setTempEvent(prev => ({
+          ...prev,
+          end: timeSlots[currentSlotIndex]
+        }));
+      }
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    // Clear the long press timer if it's still running
+    if (touchTimer) {
+      clearTimeout(touchTimer);
+      setTouchTimer(null);
+    }
+
+    // Handle short tap on an event for focusing textarea
+    const shortTapDuration = Date.now() - touchStartTime;
+    if (shortTapDuration < LONG_PRESS_DURATION && !touchDragStart && !resizing && !movingEvent) {
+      // This was a short tap - perhaps focus on text area if tapped on an event
+      // The existing click event should handle this
+    }
+
+    // Handle event creation completion
+    if (tempEvent) {
+      const startIndex = timeSlots.indexOf(tempEvent.start);
+      const endIndex = timeSlots.indexOf(tempEvent.end);
+
+      // Prevent creating zero duration
+      if (startIndex > endIndex) {
+        setIsDragging(false);
+        setTouchDragStart(null);
+        setCurrentColumn(null);
+        setTempEvent(null);
+        return;
+      }
+
+      // Check for overlaps
+      const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
+        const eventStart = timeSlots.indexOf(event.start);
+        const eventEnd = timeSlots.indexOf(event.end);
+        return (startIndex <= eventEnd && endIndex >= eventStart);
+      });
+
+      if (!hasOverlap) {
+        const newEventId = Date.now();
+        const newEvent = {
+          id: newEventId,
+          start: tempEvent.start,
+          end: tempEvent.end,
+          content: '',
+          colorIndex: lastColorIndex
+        };
+
+        updateEventsWithHistory(prev => ({
+          ...prev,
+          [tempEvent.column]: {
+            ...prev[tempEvent.column],
+            [selectedDate]: [...(prev[tempEvent.column][selectedDate] || []), newEvent]
+          }
+        }));
+
+        // Set a timeout to allow the DOM to update before focusing
+        setTimeout(() => {
+          const eventElement = document.querySelector(`[data-event-id="${newEventId}"]`);
+          if (eventElement) {
+            const textarea = eventElement.querySelector('textarea');
+            if (textarea) {
+              textarea.focus();
+            }
+          }
+        }, 0);
+      }
+    } else if (resizing || movingEvent) {
+      // Record the final state in history when the touch operation ends
+      updateEventsWithHistory(events);
+    }
+
+    // Reset all touch-related state
+    setTouchStartPosition(null);
+    setTouchDragStart(null);
+    setIsDragging(false);
+    setCurrentColumn(null);
+    setTempEvent(null);
+    setResizing(null);
+    setMovingEvent(null);
+  };
+
+  // Function for touch-based event resizing
+  const handleTouchResizeStart = (e, event, edge, columnType) => {
+    e.stopPropagation();
+
+    const touch = e.touches[0];
+
+    // Store the initial touch position
+    setTouchStartPosition({
+      x: touch.clientX,
+      y: touch.clientY
+    });
+
+    // Start a timer for long press before resizing
+    const timer = setTimeout(() => {
+      // Long press detected - start resizing the event
+      setResizing({ event, edge, columnType });
+    }, LONG_PRESS_DURATION);
+
+    setTouchTimer(timer);
+    setTouchStartTime(Date.now());
+  };
+
+  // Function for touch-based event moving
+  const startEventTouchMove = (e, event, columnType) => {
+    e.stopPropagation();
+    if (e.target.classList.contains('resize-handle')) return;
+
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetY = touch.clientY - rect.top;
+
+    // Store the initial touch position
+    setTouchStartPosition({
+      x: touch.clientX,
+      y: touch.clientY
+    });
+
+    // Start a timer for long press before moving
+    const timer = setTimeout(() => {
+      // Long press detected - start moving the event
+      setMovingEvent({
+        event,
+        columnType,
+        offsetY
+      });
+    }, LONG_PRESS_DURATION);
+
+    setTouchTimer(timer);
+    setTouchStartTime(Date.now());
+  };
 
   useEffect(() => {
     localStorage.setItem('dayPlannerStartHour', startHour.toString());
@@ -239,179 +513,6 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     setEndHour(newEnd);
   };
 
-  // Track touch events
-
-  const [touchStartY, setTouchStartY] = useState(null);
-  const [isTouching, setIsTouching] = useState(false);
-  const [touchInfo, setTouchInfo] = useState(null);
-
-  // Handle touch events for mobile
-  const handleTouchStart = (e, timeSlot, column) => {
-    const touch = e.touches[0];
-    const gridRect = timeGridRef.current.getBoundingClientRect();
-    const relativeY = touch.clientY - gridRect.top;
-
-    setTouchStartY(touch.clientY);
-    setIsTouching(true);
-    setTouchInfo({ initialY: touch.clientY, timeSlot, column });
-
-    // Handle grid touch start
-    const slotIndex = Math.floor(relativeY / densityConfig[density]);
-    if (slotIndex > 0 && slotIndex < timeSlots.length) {
-      setIsDragging(true);
-      setDragStart({ slot: timeSlots[slotIndex], y: touch.clientY });
-      setCurrentColumn(column);
-      setTempEvent({
-        start: timeSlots[slotIndex],
-        end: timeSlots[slotIndex],
-        column
-      });
-    }
-  };
-
-  const handleTouchMove = (e) => {
-    if (!isTouching) return;
-
-    const touch = e.touches[0];
-
-    // Calculate the movement delta
-    if (dragStart) {
-      const deltaY = touch.clientY - dragStart.y;
-      const slotDelta = Math.round(deltaY / densityConfig[density]);
-    }
-    const gridRect = timeGridRef.current.getBoundingClientRect();
-    const relativeY = Math.max(0, Math.min(touch.clientY - gridRect.top, gridRect.height - densityConfig[density]));
-    const currentSlotIndex = Math.floor(relativeY / densityConfig[density]);
-
-    // Handle grid touch move
-    if (isDragging && tempEvent && currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
-      setTempEvent(prev => ({
-        ...prev,
-        end: timeSlots[currentSlotIndex]
-      }));
-    }
-
-    // Handle event resizing
-    if (resizing && currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
-      const { event, edge, columnType } = resizing;
-      const newStart = edge === 'top' ? timeSlots[currentSlotIndex] : event.start;
-      const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex] : event.end;
-
-      if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
-        const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
-          if (otherEvent.id === event.id) return false;
-          return (timeSlots.indexOf(newStart) <= timeSlots.indexOf(otherEvent.end) &&
-            timeSlots.indexOf(newEnd) >= timeSlots.indexOf(otherEvent.start));
-        });
-
-        if (!hasOverlap) {
-          updateEventsWithHistory(prev => ({
-            ...prev,
-            [columnType]: {
-              ...prev[columnType],
-              [selectedDate]: (prev[columnType][selectedDate] || []).map(evt =>
-                evt.id === event.id ? { ...evt, start: newStart, end: newEnd } : evt
-              )
-            }
-          }));
-        }
-      }
-    }
-
-    // Handle event moving
-    if (movingEvent && currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
-      const { event, offsetY } = movingEvent;
-      const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
-      const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
-      const newEndIndex = newStartIndex + eventDuration;
-
-      const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
-        if (otherEvent.id === event.id) return false;
-        const otherStart = timeSlots.indexOf(otherEvent.start);
-        const otherEnd = timeSlots.indexOf(otherEvent.end);
-        return (newStartIndex <= otherEnd && newEndIndex >= otherStart);
-      });
-
-      if (!hasOverlap) {
-        updateEventsWithHistory(prev => ({
-          ...prev,
-          [movingEvent.columnType]: {
-            ...prev[movingEvent.columnType],
-            [selectedDate]: prev[movingEvent.columnType][selectedDate].map(evt =>
-              evt.id === event.id ? {
-                ...evt,
-                start: timeSlots[newStartIndex],
-                end: timeSlots[newEndIndex]
-              } : evt
-            )
-          }
-        }));
-      }
-    }
-  };
-
-  const handleTouchEnd = (e) => {
-    if (isDragging && tempEvent) {
-      const startIndex = timeSlots.indexOf(tempEvent.start);
-      const endIndex = timeSlots.indexOf(tempEvent.end);
-
-      if (startIndex <= endIndex) {
-        const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
-          const eventStart = timeSlots.indexOf(event.start);
-          const eventEnd = timeSlots.indexOf(event.end);
-          return (startIndex <= eventEnd && endIndex >= eventStart);
-        });
-
-        if (!hasOverlap) {
-          const newEventId = Date.now();
-          updateEventsWithHistory(prev => ({
-            ...prev,
-            [tempEvent.column]: {
-              ...prev[tempEvent.column],
-              [selectedDate]: [...(prev[tempEvent.column][selectedDate] || []), {
-                id: newEventId,
-                start: tempEvent.start,
-                end: tempEvent.end,
-                content: '',
-                colorIndex: lastColorIndex
-              }]
-            }
-          }));
-        }
-      }
-    }
-
-    setIsTouching(false);
-    setTouchStartY(null);
-    setTouchInfo(null);
-    setIsDragging(false);
-    setDragStart(null);
-    setCurrentColumn(null);
-    setTempEvent(null);
-    setResizing(null);
-    setMovingEvent(null);
-  };
-
-  const handleEventTouchStart = (e, event, edge, columnType) => {
-    e.stopPropagation();
-    setResizing({ event, edge, columnType });
-    setTouchStartY(e.touches[0].clientY);
-  };
-
-  const handleEventMoveTouchStart = (e, event, columnType) => {
-    e.stopPropagation();
-    if (e.target.classList.contains('resize-handle')) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const offsetY = e.touches[0].clientY - rect.top;
-    setMovingEvent({
-      event,
-      columnType,
-      offsetY
-    });
-    setTouchStartY(e.touches[0].clientY);
-  };
-
   const handleMouseDown = (e, timeSlot, column) => {
     if (e.target.classList.contains('resize-handle') || e.target.classList.contains('event-content')) return;
 
@@ -485,7 +586,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       } else if (movingEvent) {
         const { event, offsetY } = movingEvent;
         const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
-        const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / 30), timeSlots.length - eventDuration - 1));
+        const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
         const newEndIndex = newStartIndex + eventDuration;
 
         const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
@@ -802,6 +903,46 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   }
   const [connections, setConnections] = useState([]);
 
+  useEffect(() => {
+    const preventContextMenu = (e) => {
+      // Prevent default context menu
+      e.preventDefault();
+    };
+
+    const preventTouchScroll = (e) => {
+      if (isDragging || resizing || movingEvent || tempEvent) {
+        e.preventDefault();
+      }
+    };
+
+    // Add event listeners to both column containers
+    const plannedColumn = document.querySelector('[data-column="planned"]');
+    const realityColumn = document.querySelector('[data-column="reality"]');
+
+    if (plannedColumn) {
+      plannedColumn.addEventListener('contextmenu', preventContextMenu);
+    }
+
+    if (realityColumn) {
+      realityColumn.addEventListener('contextmenu', preventContextMenu);
+    }
+
+    document.addEventListener('touchmove', preventTouchScroll, { passive: false });
+
+    // Clean up
+    return () => {
+      if (plannedColumn) {
+        plannedColumn.removeEventListener('contextmenu', preventContextMenu);
+      }
+
+      if (realityColumn) {
+        realityColumn.removeEventListener('contextmenu', preventContextMenu);
+      }
+
+      document.removeEventListener('touchmove', preventTouchScroll);
+    };
+  }, [density, timeSlots, isDragging, resizing, movingEvent, tempEvent]);
+
   // Update connections when events change or on window resize
   useEffect(() => {
     const updateConnections = () => {
@@ -860,15 +1001,14 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         key={event.id}
         data-event-id={event.id}
         className={`absolute left-12 right-2 ${colorOptions[event.colorIndex || 0].class} border rounded cursor-move`}
-        style={{ top, height, touchAction: 'none' }}
+        style={{ top, height }}
         onMouseDown={(e) => startEventMove(e, event, columnType)}
-        onTouchStart={(e) => handleEventMoveTouchStart(e, event, columnType)}
+        onTouchStart={(e) => startEventTouchMove(e, event, columnType)}
       >
         <div
           className="absolute top-0 left-0 right-0 h-2 cursor-n-resize resize-handle hover:bg-gray-400/20 z-10"
-          style={{ touchAction: 'none' }}
           onMouseDown={(e) => handleResizeStart(e, event, 'top', columnType)}
-          onTouchStart={(e) => handleEventTouchStart(e, event, 'top', columnType)}
+          onTouchStart={(e) => handleTouchResizeStart(e, event, 'top', columnType)}
         />
         <div className="absolute inset-0 pt-0 pb-0 px-2 event-content">
           <div className="relative h-full">
@@ -949,13 +1089,13 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         </div>
         <div
           className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize resize-handle hover:bg-gray-400/20 z-10"
-          style={{ touchAction: 'none' }}
           onMouseDown={(e) => handleResizeStart(e, event, 'bottom', columnType)}
-          onTouchStart={(e) => handleEventTouchStart(e, event, 'bottom', columnType)}
+          onTouchStart={(e) => handleTouchResizeStart(e, event, 'bottom', columnType)}
         />
       </div>
     );
   };
+
   const isEventInRange = (event) => {
     const [timeStr, period] = event.start.split(' ');
     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -969,19 +1109,26 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     return eventStartMinutes > startHourMinutes;
   };
+
   const renderColumn = (columnType) => (
-    <div className={`border rounded-lg p-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+    <div
+      className={`border rounded-lg p-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+      data-column={columnType} // Add this attribute for proper column identification
+    >
       <h2 className={`text-xl font-semibold mb-4 text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
         {columnType === 'planned' ? 'Planned' : 'Reality'}
       </h2>
-      <div className="relative" style={{
-        height: `${timeSlots.length * densityConfig[density]}px`,
-        touchAction: 'none'
-      }} ref={timeGridRef}
-        onTouchMove={(e) => { e.stopPropagation(); handleTouchMove(e); }}
-        onTouchEnd={(e) => { e.stopPropagation(); handleTouchEnd(e); }}
+      <div className="relative"
+        style={{
+          height: `${timeSlots.length * densityConfig[density]}px`
+        }}
+        ref={timeGridRef}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
-
         <div className={`absolute -left-4 ${density === 'compact' ? 'top-3' : density === 'comfortable' ? 'top-5' : 'top-7'} h-full`}>
           {timeSlots.map((time) => (
             <div key={time} style={{ height: `${densityConfig[density]}px` }} className="flex items-center">
@@ -992,12 +1139,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           ))}
         </div>
 
-        {/* Grid lines */}
+        {/* Grid lines with touch event handlers */}
         <div className="ml-12">
           {timeSlots.map((time) => (
             <div
               key={time}
-              style={{ height: `${densityConfig[density]}px`, touchAction: 'none' }}
+              style={{ height: `${densityConfig[density]}px` }}
               className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
               onMouseDown={(e) => handleMouseDown(e, time, columnType)}
               onTouchStart={(e) => handleTouchStart(e, time, columnType)}
@@ -1015,7 +1162,6 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             style={{
               top: `${timeSlots.indexOf(tempEvent.start) * densityConfig[density]}px`,
               height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start) + 1) * densityConfig[density]}px`
-
             }}
           />
         )}
@@ -1245,6 +1391,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
