@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown, Settings, Calendar } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import DatePicker from './DatePicker';
+import GoogleCalendarImport from './GoogleCalendarImport';
 
 const formatDate = (date) => {
   const year = date.getFullYear();
@@ -30,6 +31,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const today = new Date();
     return formatDate(today);
   });
+
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('dayPlannerStartHour', startHour.toString());
@@ -1262,6 +1265,13 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         </div>
         <div className="flex flex-wrap  gap-2">
           {renderDatePicker()}
+          <GoogleCalendarImport
+            selectedDate={selectedDate}
+            updateEventsWithHistory={updateEventsWithHistory}
+            events={events}
+            timeSlots={timeSlots}
+            lastColorIndex={lastColorIndex}
+          />
           <Popover>
             <PopoverTrigger asChild>
               <button
@@ -1396,6 +1406,16 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         </svg>
       </div>
       {renderStandbySection()}
+      <div className={`mt-8 text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+        <a
+          href="/privacy.html"
+          className={`hover:underline ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Privacy Policy
+        </a>
+      </div>
     </div>
   );
 };
