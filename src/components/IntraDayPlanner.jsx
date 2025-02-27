@@ -364,6 +364,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       class: isDark ? 'bg-pink-900 border-pink-700' : 'bg-pink-100 border-pink-300',
       hoverClass: isDark ? 'hover:bg-pink-800' : 'hover:bg-pink-200',
       label: 'Pink'
+    },
+    {
+      class: isDark ? 'bg-gray-600 border-gray-500' : 'bg-gray-100 border-gray-300',
+      hoverClass: isDark ? 'hover:bg-gray-500' : 'hover:bg-gray-200',
+      label: 'Grey'
     }
   ];
 
