@@ -1,6 +1,5 @@
 <!doctype html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
@@ -9,7 +8,6 @@
   <meta name="description" content="Intra-day Planner & Reality Tracking Calendar" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
   <link rel="mask-icon" href="/mask-icon.svg" color="#ffff00" />
-
   <!-- Primary Meta Tags -->
   <title>Catlander.online - Intra-day Planner & Reality Tracking Calendar</title>
   <meta name="title" content="Catlander.online - Intra-day Planner & Reality Tracking Calendar">
@@ -17,7 +15,15 @@
     content="Efficient web-based calendar for planning your day and comparing planned activities with actual time spent. Perfect for productivity tracking and time management.">
   <meta name="keywords"
     content="intra-day planner, calendar app, time management, productivity tracker, daily planner, schedule comparison, time tracking">
-
+  
+  <!-- Chinese Meta Tags (for Baidu and Chinese users) -->
+  <meta name="title" lang="zh" content="猫猫日程 (Catlander.online) - 日内计划与实际时间追踪日历">
+  <meta name="description" lang="zh"
+    content="高效的基于网络的日历，用于规划您的一天并比较计划活动与实际花费的时间。非常适合生产力跟踪和时间管理。">
+  <meta name="keywords" lang="zh"
+    content="日内计划, 日历应用, 时间管理, 生产力追踪, 日程计划, 时间对比, 时间跟踪, 猫猫日程">
+  <meta name="baidu-site-verification" content="your-baidu-verification-code">
+  
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://catlander.online/">
@@ -25,7 +31,13 @@
   <meta property="og:description"
     content="Efficient web-based calendar for planning your day and comparing planned activities with actual time spent. Perfect for productivity tracking and time management.">
   <meta property="og:image" content="https://catlander.online/logo.jpg">
-
+  
+  <!-- Chinese Open Graph -->
+  <meta property="og:locale:alternate" content="zh_CN">
+  <meta property="og:title" lang="zh" content="猫猫日程 (Catlander.online) - 日内计划与实际时间追踪日历">
+  <meta property="og:description" lang="zh"
+    content="高效的基于网络的日历，用于规划您的一天并比较计划活动与实际花费的时间。非常适合生产力跟踪和时间管理。">
+  
   <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:url" content="https://catlander.online/">
@@ -33,13 +45,14 @@
   <meta property="twitter:description"
     content="Efficient web-based calendar for planning your day and comparing planned activities with actual time spent. Perfect for productivity tracking and time management.">
   <meta property="twitter:image" content="https://catlander.online/logo.jpg">
-
+  
   <!-- Structured Data -->
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "Catlander.online",
+      "alternateName": "猫猫日程",
       "applicationCategory": "ProductivityApplication",
       "operatingSystem": "Web",
       "description": "Web-based intra-day planner and calendar that helps users plan their activities and compare them with actual time spent.",
@@ -56,17 +69,30 @@
         "Productivity analysis"
       ]
     }
-    </script>
-
+  </script>
+  
   <!-- Canonical URL -->
   <link rel="canonical" href="https://catlander.online/" />
-
   <!-- Robots meta -->
   <meta name="robots" content="index, follow">
-
   <!-- Additional Meta Tags -->
   <meta name="author" content="Catlander">
   <meta name="theme-color" content="#ffffff">
+  
+  <!-- Language Detection Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check if browser language is Chinese
+      const userLang = navigator.language || navigator.userLanguage;
+      if (userLang.startsWith('zh')) {
+        // Update the page title for Chinese users
+        document.title = "猫猫日程 (Catlander.online) - 日内计划与实际时间追踪日历";
+        
+        // You can add more Chinese-specific customizations here
+        // while keeping the default UI in English
+      }
+    });
+  </script>
 </head>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-TJNZKGJXX8"></script>
@@ -74,13 +100,10 @@
   window.dataLayer = window.dataLayer || [];
   function gtag() { dataLayer.push(arguments); }
   gtag('js', new Date());
-
   gtag('config', 'G-TJNZKGJXX8');
 </script>
-
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
-
 </html>
