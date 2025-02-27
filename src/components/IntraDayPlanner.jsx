@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown, Settings, Calendar } from 'lucide-react';
+import { Trash2, Palette, CheckSquare, Type, Undo2, Copy, Sun, Moon, Plus, ArrowUp, ArrowDown, Settings } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import DatePicker from './DatePicker';
 import GoogleCalendarImport from './GoogleCalendarImport';
