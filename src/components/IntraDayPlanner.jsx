@@ -1402,6 +1402,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     >
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
+          <img
+            src="/white-logo.png"
+            alt="Catlendar Logo"
+            className={`h-10 w-auto rounded-lg ${isDark ? 'invert' : ''}`}
+          />
           <a href="http://catlendar.online">
             <img
               src="/logo2.svg"
