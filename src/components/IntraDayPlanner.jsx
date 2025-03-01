@@ -4,6 +4,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import DatePicker from './DatePicker';
 import GoogleCalendarImport from './GoogleCalendarImport';
 
+// Add the current version number constant
+const CURRENT_VERSION = 1;
+
 const formatDate = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -374,13 +377,36 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const [lastColorIndex, setLastColorIndex] = useState(0); // Default to blue (index 0)
 
-  const initialEvents = { planned: {}, reality: {}, standby: [] };
+ const initialEvents = { 
+   planned: {}, 
+   reality: {}, 
+   standby: [],
+   version: CURRENT_VERSION 
+ };
+ 
+  // Function to fix time slots in events (shift by 30 minutes earlier)
+  const migrateEventsTimeSlots = (events, allTimeSlots) => {
+    return events.map(event => {
+      // Calculate the correct time slot indices, fixing the 30-minute lag
+      // If the event start time is at index 0, we don't want to go negative
+      const startIndex = allTimeSlots.indexOf(event.start) <= 0 ? 0 : allTimeSlots.indexOf(event.start) - 1;
+      
+      return {
+        ...event,
+        start: allTimeSlots[startIndex],
+      };
+    });
+  };
 
   // State management
   const [events, setEvents] = useState(() => {
     const saved = localStorage.getItem('dayPlanner');
     if (saved) {
       const parsedEvents = JSON.parse(saved);
+      
+      // Check if the data has a version number
+      const dataVersion = parsedEvents.version || 0;
+      
       // Ensure standby array exists in saved data
       const newFormat = {
         planned: typeof parsedEvents.planned === 'object' && !Array.isArray(parsedEvents.planned)
@@ -389,12 +415,40 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         reality: typeof parsedEvents.reality === 'object' && !Array.isArray(parsedEvents.reality)
           ? parsedEvents.reality
           : { [selectedDate]: parsedEvents.reality || [] },
-        standby: parsedEvents.standby || []
+        standby: parsedEvents.standby || [],
+        version: dataVersion
       };
+      
+      // If unversioned data, adjust event times to fix the 30-minute lag
+      if (dataVersion < 1) {
+        // Migrate each day's events in planned and reality
+        Object.keys(newFormat.planned).forEach(date => {
+          if (Array.isArray(newFormat.planned[date])) {
+            newFormat.planned[date] = migrateEventsTimeSlots(newFormat.planned[date], timeSlots);
+          }
+        });
+        
+        Object.keys(newFormat.reality).forEach(date => {
+          if (Array.isArray(newFormat.reality[date])) {
+            newFormat.reality[date] = migrateEventsTimeSlots(newFormat.reality[date], timeSlots);
+          }
+        });
+        
+        // Set the version to current
+        newFormat.version = CURRENT_VERSION;
+      }
+      
       return newFormat;
     }
     return initialEvents;
   });
+
+  // Shows version info in console for debugging
+  useEffect(() => {
+    if (events.version !== undefined) {
+      console.log(`Current data version: ${events.version}, Latest version: ${CURRENT_VERSION}`);
+    }
+  }, [events.version]);
 
   // History stack for undo functionality
   const [history, setHistory] = useState([]);
@@ -436,6 +490,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const newEvents = typeof newEventsOrUpdater === 'function'
       ? newEventsOrUpdater(events)
       : newEventsOrUpdater;
+
+    // Ensure version number is always set correctly
+    if (!newEvents.version) {
+      newEvents.version = CURRENT_VERSION;
+    }
 
     // If we're not at the end of the history, remove all future states
     const newHistory = history.slice(0, currentIndex + 1);
@@ -998,8 +1057,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const renderEvent = (event, columnType) => {
     const startIndex = timeSlots.indexOf(event.start);
     const endIndex = timeSlots.indexOf(event.end);
-    const height = `${(endIndex - startIndex + 1) * densityConfig[density]}px`;
-    const top = `${startIndex * densityConfig[density]}px`;
+    const height = `${(endIndex - startIndex) * densityConfig[density]}px`;
+    // +1 because there is an event that's not displayed at the beginning.
+    const top = `${(startIndex + 1)* densityConfig[density]}px`;
 
     return (
       <div
