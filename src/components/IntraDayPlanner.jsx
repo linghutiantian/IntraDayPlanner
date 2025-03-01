@@ -45,8 +45,6 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   // Add these functions to handle touch events
 
   const handleTouchStart = (e, timeSlot, column) => {
-    // Only prevent default if we're not interacting with a button or other interactive element
-
     const touch = e.touches[0];
     const gridRect = timeGridRef.current.getBoundingClientRect();
     const relativeY = touch.clientY - gridRect.top;
@@ -63,7 +61,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       // Long press detected - create event
       const slotIndex = Math.floor(relativeY / densityConfig[density]);
 
-      if (slotIndex > 0 && slotIndex < timeSlots.length) {
+      // Allow creating events at any valid index (including 0)
+      if (slotIndex >= 0 && slotIndex < timeSlots.length) {
         setTouchDragStart(timeSlots[slotIndex]);
         setCurrentColumn(column);
 
@@ -377,20 +376,20 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const [lastColorIndex, setLastColorIndex] = useState(0); // Default to blue (index 0)
 
- const initialEvents = { 
-   planned: {}, 
-   reality: {}, 
-   standby: [],
-   version: CURRENT_VERSION 
- };
- 
+  const initialEvents = {
+    planned: {},
+    reality: {},
+    standby: [],
+    version: CURRENT_VERSION
+  };
+
   // Function to fix time slots in events (shift by 30 minutes earlier)
   const migrateEventsTimeSlots = (events, allTimeSlots) => {
     return events.map(event => {
       // Calculate the correct time slot indices, fixing the 30-minute lag
       // If the event start time is at index 0, we don't want to go negative
       const startIndex = allTimeSlots.indexOf(event.start) <= 0 ? 0 : allTimeSlots.indexOf(event.start) - 1;
-      
+
       return {
         ...event,
         start: allTimeSlots[startIndex],
@@ -403,10 +402,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const saved = localStorage.getItem('dayPlanner');
     if (saved) {
       const parsedEvents = JSON.parse(saved);
-      
+
       // Check if the data has a version number
       const dataVersion = parsedEvents.version || 0;
-      
+
       // Ensure standby array exists in saved data
       const newFormat = {
         planned: typeof parsedEvents.planned === 'object' && !Array.isArray(parsedEvents.planned)
@@ -418,7 +417,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         standby: parsedEvents.standby || [],
         version: dataVersion
       };
-      
+
       // If unversioned data, adjust event times to fix the 30-minute lag
       if (dataVersion < 1) {
         // Migrate each day's events in planned and reality
@@ -427,17 +426,17 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             newFormat.planned[date] = migrateEventsTimeSlots(newFormat.planned[date], timeSlots);
           }
         });
-        
+
         Object.keys(newFormat.reality).forEach(date => {
           if (Array.isArray(newFormat.reality[date])) {
             newFormat.reality[date] = migrateEventsTimeSlots(newFormat.reality[date], timeSlots);
           }
         });
-        
+
         // Set the version to current
         newFormat.version = CURRENT_VERSION;
       }
-      
+
       return newFormat;
     }
     return initialEvents;
@@ -553,7 +552,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const totalMinutes = hours * 60 + minutes;
-    const top_pixel = 75;
+    const top_pixel = 47;
     const end_pixel = top_pixel + ((timeSlots.length - 1) * densityConfig[density]);
     // Calculate start and end minutes of the day planner
     const startMinutes = startHour * 60;
@@ -584,7 +583,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const relativeY = e.clientY - gridRect.top;
     const slotIndex = Math.floor(relativeY / densityConfig[density]);
 
-    if (slotIndex > 0 && slotIndex < timeSlots.length) {
+    // Allow creating events at any valid index (including 0)
+    if (slotIndex >= 0 && slotIndex < timeSlots.length) {
       setIsDragging(true);
       setDragStart(timeSlots[slotIndex]);
       setCurrentColumn(column);
@@ -1056,10 +1056,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const renderEvent = (event, columnType) => {
     const startIndex = timeSlots.indexOf(event.start);
-    const endIndex = timeSlots.indexOf(event.end);
+    const endIndex = timeSlots.indexOf(event.end) + 1;
     const height = `${(endIndex - startIndex) * densityConfig[density]}px`;
-    // +1 because there is an event that's not displayed at the beginning.
-    const top = `${(startIndex + 1)* densityConfig[density]}px`;
+    const top = `${startIndex * densityConfig[density]}px`;
 
     return (
       <div
@@ -1172,13 +1171,13 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const eventStartMinutes = eventStartHour * 60 + minutes;
     const startHourMinutes = startHour * 60;
 
-    return eventStartMinutes > startHourMinutes;
+    return eventStartMinutes >= startHourMinutes;
   };
 
   const renderColumn = (columnType) => (
     <div
       className={`border rounded-lg p-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-      data-column={columnType} // Add this attribute for proper column identification
+      data-column={columnType}
     >
       <h2 className={`text-xl font-semibold mb-4 text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
         {columnType === 'planned' ? 'Planned' : 'Reality'}
@@ -1194,19 +1193,33 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
       >
-        <div className={`absolute -left-4 ${density === 'compact' ? 'top-3' : density === 'comfortable' ? 'top-5' : 'top-7'} h-full`}>
-          {timeSlots.map((time) => (
-            <div key={time} style={{ height: `${densityConfig[density]}px` }} className="flex items-center">
-              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} select-none`}>
+        {/* Time labels column - add the last time slot label */}
+        <div className="absolute -left-4 top-0 h-full">
+          {/* Display all existing time slots */}
+          {timeSlots.map((time, index) => (
+            <div
+              key={time}
+              style={{ height: `${densityConfig[density]}px` }}
+              className="flex items-center"
+            >
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} select-none`} style={{ marginTop: `${density === 'compact' ? -30 : density === 'comfortable' ? -45 : -60}px` }}>
                 {time}
               </span>
             </div>
           ))}
+
         </div>
 
-        {/* Grid lines with touch event handlers */}
+        {/* Grid lines with top border for the first slot */}
         <div className="ml-12">
-          {timeSlots.map((time) => (
+          {/* Add a horizontal line at the very top - beginning of first time slot */}
+          <div
+            className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+          />
+
+          {/* Regular grid lines */}
+          {/* Regular grid lines - skip the last slot */}
+          {timeSlots.slice(0, -1).map((time, index) => (
             <div
               key={time}
               style={{ height: `${densityConfig[density]}px` }}
