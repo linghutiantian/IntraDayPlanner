@@ -1159,17 +1159,32 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   };
 
   const isEventInRange = (event) => {
-    const [timeStr, period] = event.start.split(' ');
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    // Parse event start time
+    const [startTimeStr, startPeriod] = event.start.split(' ');
+    const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
 
-    let eventStartHour = hours;
-    if (period === 'PM' && hours !== 12) eventStartHour += 12;
-    if (period === 'AM' && hours === 12) eventStartHour = 0;
+    let eventStartHour = startHours;
+    if (startPeriod === 'PM' && startHours !== 12) eventStartHour += 12;
+    if (startPeriod === 'AM' && startHours === 12) eventStartHour = 0;
 
-    const eventStartMinutes = eventStartHour * 60 + minutes;
-    const startHourMinutes = startHour * 60;
+    const eventStartMinutes = eventStartHour * 60 + startMinutes;
 
-    return eventStartMinutes >= startHourMinutes;
+    // Parse event end time
+    const [endTimeStr, endPeriod] = event.end.split(' ');
+    const [endHours, endMinutes] = endTimeStr.split(':').map(Number);
+
+    let eventEndHour = endHours;
+    if (endPeriod === 'PM' && endHours !== 12) eventEndHour += 12;
+    if (endPeriod === 'AM' && endHours === 12) eventEndHour = 0;
+
+    const eventEndMinutes = eventEndHour * 60 + endMinutes;
+
+    // Get planner's time range in minutes
+    const plannerStartMinutes = startHour * 60;
+    const plannerEndMinutes = endHour * 60;
+
+    // Event is in range if any part of it overlaps with the planner's time range
+    return eventEndMinutes > plannerStartMinutes && eventStartMinutes < plannerEndMinutes;
   };
 
   const renderColumn = (columnType) => (
