@@ -102,13 +102,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
         const { event, edge, columnType } = resizing;
         const newStart = edge === 'top' ? timeSlots[currentSlotIndex] : event.start;
-        const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex] : event.end;
+        const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex + 1 < timeSlots.length ? currentSlotIndex + 1 : currentSlotIndex] : event.end;
 
         if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
           const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
             if (otherEvent.id === event.id) return false;
-            return (timeSlots.indexOf(newStart) <= timeSlots.indexOf(otherEvent.end) &&
-              timeSlots.indexOf(newEnd) >= timeSlots.indexOf(otherEvent.start));
+            return (timeSlots.indexOf(newStart) < timeSlots.indexOf(otherEvent.end) && timeSlots.indexOf(newEnd) > timeSlots.indexOf(otherEvent.start));
           });
 
           if (!hasOverlap) {
@@ -135,14 +134,14 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
       if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
         const { event, offsetY } = movingEvent;
-        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
+        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start) - 1;
         const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
         const newEndIndex = newStartIndex + eventDuration;
 
         const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
           if (otherEvent.id === event.id) return false;
           const otherStart = timeSlots.indexOf(otherEvent.start);
-          const otherEnd = timeSlots.indexOf(otherEvent.end);
+          const otherEnd = timeSlots.indexOf(otherEvent.end) - 1;
           return (newStartIndex <= otherEnd && newEndIndex >= otherStart);
         });
 
@@ -155,7 +154,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                 evt.id === event.id ? {
                   ...evt,
                   start: timeSlots[newStartIndex],
-                  end: timeSlots[newEndIndex]
+                  end: timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex]
                 } : evt
               )
             }
@@ -212,7 +211,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
         const eventStart = timeSlots.indexOf(event.start);
         const eventEnd = timeSlots.indexOf(event.end);
-        return (startIndex <= eventEnd && endIndex >= eventStart);
+        return (startIndex < eventEnd && endIndex > eventStart);
       });
 
       if (!hasOverlap) {
@@ -220,7 +219,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         const newEvent = {
           id: newEventId,
           start: tempEvent.start,
-          end: tempEvent.end,
+          end: timeSlots[timeSlots.indexOf(tempEvent.end) + 1 < timeSlots.length ? timeSlots.indexOf(tempEvent.end) + 1 : timeSlots.indexOf(tempEvent.end)],
           content: '',
           colorIndex: lastColorIndex
         };
@@ -626,13 +625,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       } else if (resizing) {
         const { event, edge, columnType } = resizing;
         const newStart = edge === 'top' ? timeSlots[currentSlotIndex] : event.start;
-        const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex] : event.end;
+        const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex + 1 < timeSlots.length ? currentSlotIndex + 1 : currentSlotIndex] : event.end;
 
         if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
           const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
             if (otherEvent.id === event.id) return false;
-            return (timeSlots.indexOf(newStart) <= timeSlots.indexOf(otherEvent.end) &&
-              timeSlots.indexOf(newEnd) >= timeSlots.indexOf(otherEvent.start));
+            return (timeSlots.indexOf(newStart) < timeSlots.indexOf(otherEvent.end) && timeSlots.indexOf(newEnd) > timeSlots.indexOf(otherEvent.start));
           });
 
           if (!hasOverlap) {
@@ -649,14 +647,14 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         }
       } else if (movingEvent) {
         const { event, offsetY } = movingEvent;
-        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
+        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start) - 1;
         const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
         const newEndIndex = newStartIndex + eventDuration;
 
         const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
           if (otherEvent.id === event.id) return false;
           const otherStart = timeSlots.indexOf(otherEvent.start);
-          const otherEnd = timeSlots.indexOf(otherEvent.end);
+          const otherEnd = timeSlots.indexOf(otherEvent.end) - 1;
           return (newStartIndex <= otherEnd && newEndIndex >= otherStart);
         });
 
@@ -669,7 +667,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                 evt.id === event.id ? {
                   ...evt,
                   start: timeSlots[newStartIndex],
-                  end: timeSlots[newEndIndex]
+                  end: timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex]
                 } : evt
               )
             }
@@ -697,7 +695,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
         const eventStart = timeSlots.indexOf(event.start);
         const eventEnd = timeSlots.indexOf(event.end);
-        return (startIndex <= eventEnd && endIndex >= eventStart);
+        return (startIndex < eventEnd && endIndex > eventStart);
       });
 
       if (!hasOverlap) {
@@ -705,7 +703,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         const newEvent = {
           id: newEventId,
           start: tempEvent.start,
-          end: tempEvent.end,
+          end: timeSlots[timeSlots.indexOf(tempEvent.end) + 1 < timeSlots.length ? timeSlots.indexOf(tempEvent.end) + 1 : timeSlots.indexOf(tempEvent.end)],
           content: '',
           colorIndex: lastColorIndex // Use the last selected color
         };
@@ -905,7 +903,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const duplicateToReality = (event) => {
     // Find a non-overlapping position for the duplicated event
-    const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
+    const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start) - 1;
     let newStartIndex = timeSlots.indexOf(event.start);
     let found = false;
 
@@ -915,7 +913,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const hasOverlap = (events.reality[selectedDate] || []).some(existingEvent => {
         const existingStart = timeSlots.indexOf(existingEvent.start);
         const existingEnd = timeSlots.indexOf(existingEvent.end);
-        return (newStartIndex <= existingEnd && newEndIndex >= existingStart);
+        return (newStartIndex < existingEnd && newEndIndex >= existingStart);
       });
 
       if (!hasOverlap) {
@@ -931,7 +929,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         id: Date.now(), // New unique ID
         sourceId: event.id,  // Track which planned event this was copied from
         start: timeSlots[newStartIndex],
-        end: timeSlots[newStartIndex + eventDuration],
+        end: timeSlots[newStartIndex + eventDuration + 1 < timeSlots.length ? newStartIndex + eventDuration + 1 : newStartIndex + eventDuration],
       };
 
       updateEventsWithHistory(prev => ({
@@ -1056,7 +1054,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const renderEvent = (event, columnType) => {
     const startIndex = timeSlots.indexOf(event.start);
-    const endIndex = timeSlots.indexOf(event.end) + 1;
+    const endIndex = timeSlots.indexOf(event.end);
     const height = `${(endIndex - startIndex) * densityConfig[density]}px`;
     const top = `${startIndex * densityConfig[density]}px`;
 
@@ -1239,7 +1237,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             className={`absolute left-12 right-2 ${colorOptions[lastColorIndex].class} border rounded opacity-50`}
             style={{
               top: `${timeSlots.indexOf(tempEvent.start) * densityConfig[density]}px`,
-              height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start) + 1) * densityConfig[density]}px`
+              height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start)) * densityConfig[density]}px`
             }}
           />
         )}
@@ -1297,13 +1295,13 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       return !plannedEvents.some(event => {
         const eventStart = timeSlots.indexOf(event.start);
         const eventEnd = timeSlots.indexOf(event.end);
-        return (index <= eventEnd && index >= eventStart);
+        return (index < eventEnd && index >= eventStart);
       });
     };
 
     // Look for first available slot
     const findFirstAvailableSlot = (fromIndex) => {
-      for (let i = fromIndex; i < timeSlots.length; i++) {
+      for (let i = fromIndex; i < timeSlots.length - 1; i++) {
         if (isSlotAvailable(i)) {
           return i;
         }
@@ -1316,14 +1314,14 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     // If no slot found after current time, try from the beginning
     if (availableSlot === -1) {
-      availableSlot = findFirstAvailableSlot(1);
+      availableSlot = findFirstAvailableSlot(0);
     }
 
     if (availableSlot !== -1) {
       const newEvent = {
         id: Date.now(),
         start: timeSlots[availableSlot],
-        end: timeSlots[availableSlot],
+        end: timeSlots[availableSlot + 1 < timeSlots.length ? availableSlot + 1 : availableSlot],
         content: standbyEvent.content,
         colorIndex: standbyEvent.colorIndex,
         isCheckboxMode: standbyEvent.isCheckboxMode
