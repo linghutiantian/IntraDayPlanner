@@ -328,7 +328,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const totalMinutes = i * 30 + (startHour * 60);
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;
-      slots.push(`${hours === 0 || hours === 24 ? 12 : hours === 12 ? 12 : hours % 12}:${minutes.toString().padStart(2, '0')} ${hours < 12 || hours === 24 ? 'AM' : 'PM'}`);
+      // For the last slot, add a special designator
+      if (i === totalSlots - 1 && startHour === 0 && endHour === 24) {
+        slots.push(`${hours === 0 || hours === 24 ? 12 : hours === 12 ? 12 : hours % 12}:${minutes.toString().padStart(2, '0')} ${hours < 12 || hours === 24 ? 'AM' : 'PM'} [END]`);
+      } else {
+        slots.push(`${hours === 0 || hours === 24 ? 12 : hours === 12 ? 12 : hours % 12}:${minutes.toString().padStart(2, '0')} ${hours < 12 || hours === 24 ? 'AM' : 'PM'}`);
+      }
     }
 
     return slots;
@@ -1252,7 +1257,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             className={`absolute left-12 right-2 ${colorOptions[lastColorIndex].class} border rounded opacity-50`}
             style={{
               top: `${timeSlots.indexOf(tempEvent.start) * densityConfig[density]}px`,
-              height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start)) * densityConfig[density]}px`
+              height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start) + 1) * densityConfig[density]}px`
             }}
           />
         )}
@@ -1660,6 +1665,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         >
           Privacy Policy
         </a>
+        <span>Version: {events.version || 'unknown'}</span>
       </div>
     </div>
   );
