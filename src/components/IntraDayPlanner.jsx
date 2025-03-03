@@ -198,6 +198,19 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           });
 
           if (!hasOverlap) {
+            // Check if this resize would make it a 15-minute event
+            const startIndex = timeSlots.indexOf(newStart);
+            const endIndex = timeSlots.indexOf(newEnd);
+            const is15MinEvent = endIndex - startIndex === 1;
+
+            if (is15MinEvent && density === 'compact' && !hasShown15MinPrompt[selectedDate]) {
+              setShowDensityPrompt(true);
+              setHasShown15MinPrompt(prev => ({
+                ...prev,
+                [selectedDate]: true
+              }));
+            }
+
             setEvents(prev => ({
               ...prev,
               [columnType]: {
@@ -805,6 +818,19 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           });
 
           if (!hasOverlap) {
+            // Check if this resize would make it a 15-minute event
+            const startIndex = timeSlots.indexOf(newStart);
+            const endIndex = timeSlots.indexOf(newEnd);
+            const is15MinEvent = endIndex - startIndex === 1;
+
+            if (is15MinEvent && density === 'compact' && !hasShown15MinPrompt[selectedDate]) {
+              setShowDensityPrompt(true);
+              setHasShown15MinPrompt(prev => ({
+                ...prev,
+                [selectedDate]: true
+              }));
+            }
+
             updateEventsWithHistory(prev => ({
               ...prev,
               [columnType]: {
@@ -825,6 +851,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         // When dragging, use the original event duration
         const newEventStart = timeSlots[newStartIndex];
         const newEventEnd = timeSlots[newEndIndex < timeSlots.length ? newEndIndex : newEndIndex - 1];
+
+        // Check if both new start and end times are within the displayed range
+        if (!isTimeSlotInRange(newEventStart) || !isTimeSlotInRange(newEventEnd)) return;
 
         const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
           if (otherEvent.id === event.id) return false;
