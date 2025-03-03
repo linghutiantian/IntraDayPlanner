@@ -34,6 +34,7 @@ const checkTimeOverlap = (startTime1, endTime1, startTime2, endTime2) => {
 // Add the current version number constant
 const CURRENT_VERSION = 1;
 
+// Helper function to check if a time slot is within the displayed range
 const formatDate = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -52,9 +53,42 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     return saved ? parseInt(saved) : 18;
   });
 
+  // Helper function to check if a time slot is within the displayed range
+  const isTimeSlotInRange = (timeSlot) => {
+    // Parse the time slot
+    const [timeStr, period] = timeSlot.split(' ');
+    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    // Convert to 24-hour format
+    let hour = hours;
+    if (period === 'PM' && hours !== 12) hour += 12;
+    if (period === 'AM' && hours === 12) hour = 0;
+
+    // Special handling for midnight (24:00/00:00)
+    if (hour === 0 && endHour === 24) {
+      return true;
+    }
+
+    // Handle case where end time is next day
+    if (startHour > endHour) {
+      // Time slots after midnight but before end time
+      if (hour <= endHour) {
+        return true;
+      }
+      // Time slots after or at start hour
+      if (hour >= startHour) {
+        return true;
+      }
+      return false;
+    }
+
+    // Normal case: check if hour is within range (inclusive of end hour)
+    return hour >= startHour && hour <= endHour;
+  };
+
   const [density, setDensity] = useState(() => {
     const saved = localStorage.getItem('dayPlannerDensity');
-    return saved || 'compact'; // 'compact', 'comfortable', 'spacious'
+    return saved || 'comfortable'; // Default to 'comfortable'
   });
 
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -92,15 +126,30 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
       // Allow creating events at any valid index (including 0)
       if (slotIndex >= 0 && slotIndex < timeSlots.length) {
-        setTouchDragStart(timeSlots[slotIndex]);
+        // Check if the start time is within range
+        const startTime = timeSlots[slotIndex];
+        if (!isTimeSlotInRange(startTime)) return;
+
+        // Calculate the default duration based on density (issue #3)
+        // In compact mode: 30 min (2 slots), otherwise: 15 min (1 slot)
+        const defaultDuration = density === 'compact' ? 1 : 0;
+        const endSlotIndex = Math.min(slotIndex + defaultDuration, timeSlots.length - 1);
+        const endTime = timeSlots[endSlotIndex + 1 < timeSlots.length ? endSlotIndex + 1 : endSlotIndex];
+
+        // Check if both start and end times are within range
+        if (!isTimeSlotInRange(endTime)) return;
+
+        // Check if the next slot after end would be out of range (prevents creating events that can't be completed)
+        const nextSlot = timeSlots[endSlotIndex + 1];
+        if (!nextSlot || !isTimeSlotInRange(nextSlot)) return;
+
+        // Only create event if both start and end are in range
+        setTouchDragStart(startTime);
         setCurrentColumn(column);
         setTempEventHasOverlap(false);
 
-        // Calculate the end slot for a 30-minute (2-slot) event by default
-        const endSlotIndex = Math.min(slotIndex + 1, timeSlots.length - 1);
-
         setTempEvent({
-          start: timeSlots[slotIndex],
+          start: startTime,
           end: timeSlots[endSlotIndex],
           column
         });
@@ -137,7 +186,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         const newStart = edge === 'top' ? timeSlots[currentSlotIndex] : event.start;
         const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex + 1 < timeSlots.length ? currentSlotIndex + 1 : currentSlotIndex] : event.end;
 
-        if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
+        // Check if the new start/end times are within the displayed range
+        if (edge === 'top' && !isTimeSlotInRange(newStart)) return;
+        if (edge === 'bottom' && !isTimeSlotInRange(newEnd)) return;
+
+        // Check if this would create a zero duration event
+        if (preventZeroDuration(newStart, newEnd)) {
           const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
             if (otherEvent.id === event.id) return false;
             return checkTimeOverlap(newStart, newEnd, otherEvent.start, otherEvent.end);
@@ -171,11 +225,16 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
         const newEndIndex = newStartIndex + eventDuration;
 
+        // When dragging, use the original event duration
+        const newEventStart = timeSlots[newStartIndex];
+        const newEventEnd = timeSlots[newEndIndex < timeSlots.length ? newEndIndex : newEndIndex - 1];
+
+        // Check if both new start and end times are within the displayed range
+        if (!isTimeSlotInRange(newEventStart) || !isTimeSlotInRange(newEventEnd)) return;
+
         const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
           if (otherEvent.id === event.id) return false;
-          // Use time-based comparison instead of index-based
-          const newEventStart = timeSlots[newStartIndex];
-          const newEventEnd = timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex];
+          // Use time-based comparison
           return checkTimeOverlap(newEventStart, newEventEnd, otherEvent.start, otherEvent.end);
         });
 
@@ -187,8 +246,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
               [selectedDate]: (prev[movingEvent.columnType][selectedDate] || []).map(evt =>
                 evt.id === event.id ? {
                   ...evt,
-                  start: timeSlots[newStartIndex],
-                  end: timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex]
+                  start: newEventStart,
+                  end: newEventEnd
                 } : evt
               )
             }
@@ -207,6 +266,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
         // Check if the new endpoint would create an overlap
         const newEnd = timeSlots[currentSlotIndex];
+
+        // Check if the new end time is within the displayed range
+        if (!isTimeSlotInRange(newEnd)) return;
+
         const endTimeSlot = timeSlots[currentSlotIndex + 1 < timeSlots.length ?
           currentSlotIndex + 1 :
           currentSlotIndex];
@@ -657,16 +720,31 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     // Allow creating events at any valid index (including 0)
     if (slotIndex >= 0 && slotIndex < timeSlots.length) {
+      // Check if the start time is within range
+      const startTime = timeSlots[slotIndex];
+      if (!isTimeSlotInRange(startTime)) return;
+
+      // Calculate the default duration based on density (issue #3)
+      // In compact mode: 30 min (2 slots), otherwise: 15 min (1 slot)
+      const defaultDuration = density === 'compact' ? 1 : 0;
+      const endSlotIndex = Math.min(slotIndex + defaultDuration, timeSlots.length - 1);
+      const endTime = timeSlots[endSlotIndex + 1 < timeSlots.length ? endSlotIndex + 1 : endSlotIndex];
+
+      // Check if both start and end times are within range
+      if (!isTimeSlotInRange(endTime)) return;
+
+      // Check if the next slot after end would be out of range (prevents creating events that can't be completed)
+      const nextSlot = timeSlots[endSlotIndex + 1];
+      if (!nextSlot || !isTimeSlotInRange(nextSlot)) return;
+
+      // Only create event if both start and end are in range
       setIsDragging(true);
-      setDragStart(timeSlots[slotIndex]);
+      setDragStart(startTime);
       setCurrentColumn(column);
       setTempEventHasOverlap(false);
 
-      // Calculate the end slot for a 30-minute (2-slot) event by default
-      const endSlotIndex = Math.min(slotIndex + 1, timeSlots.length - 1);
-
       setTempEvent({
-        start: timeSlots[slotIndex],
+        start: startTime,
         end: timeSlots[endSlotIndex],
         column
       });
@@ -719,7 +797,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         const newStart = edge === 'top' ? timeSlots[currentSlotIndex] : event.start;
         const newEnd = edge === 'bottom' ? timeSlots[currentSlotIndex + 1 < timeSlots.length ? currentSlotIndex + 1 : currentSlotIndex] : event.end;
 
-        if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
+        // Check if this would create a zero duration event
+        if (preventZeroDuration(newStart, newEnd)) {
           const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
             if (otherEvent.id === event.id) return false;
             return checkTimeOverlap(newStart, newEnd, otherEvent.start, otherEvent.end);
@@ -743,11 +822,13 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
         const newEndIndex = newStartIndex + eventDuration;
 
+        // When dragging, use the original event duration
+        const newEventStart = timeSlots[newStartIndex];
+        const newEventEnd = timeSlots[newEndIndex < timeSlots.length ? newEndIndex : newEndIndex - 1];
+
         const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
           if (otherEvent.id === event.id) return false;
           // Use time-based comparison instead of index-based
-          const newEventStart = timeSlots[newStartIndex];
-          const newEventEnd = timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex];
           return checkTimeOverlap(newEventStart, newEventEnd, otherEvent.start, otherEvent.end);
         });
 
@@ -759,8 +840,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
               [selectedDate]: (prev[movingEvent.columnType][selectedDate] || []).map(evt =>
                 evt.id === event.id ? {
                   ...evt,
-                  start: timeSlots[newStartIndex],
-                  end: timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex]
+                  start: newEventStart,
+                  end: newEventEnd
                 } : evt
               )
             }
@@ -851,6 +932,18 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const handleResizeStart = (e, event, edge, columnType) => {
     e.stopPropagation();
     setResizing({ event, edge, columnType });
+  };
+
+  // Helper function to prevent zero duration events
+  const preventZeroDuration = (newStart, newEnd) => {
+    const startIndex = timeSlots.indexOf(newStart);
+    const endIndex = timeSlots.indexOf(newEnd);
+
+    // If start is after or equal to end, it would create a zero or negative duration
+    if (startIndex >= endIndex) {
+      return false;
+    }
+    return true;
   };
 
   const updateEventContent = (columnType, eventId, newContent) => {
@@ -1015,8 +1108,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const duplicateToReality = (event) => {
     // Find a non-overlapping position for the duplicated event
-    const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
-    let newStartIndex = timeSlots.indexOf(event.start);
+    const eventStartIndex = timeSlots.indexOf(event.start);
+    const eventEndIndex = timeSlots.indexOf(event.end);
+    const eventDuration = eventEndIndex - eventStartIndex;
+    let newStartIndex = eventStartIndex;
     let found = false;
 
     // Try to find a non-overlapping slot
@@ -1024,7 +1119,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const newEndIndex = newStartIndex + eventDuration;
       const hasOverlap = (events.reality[selectedDate] || []).some(existingEvent => {
         const newEventStart = timeSlots[newStartIndex];
-        const newEventEnd = timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex];
+        const newEventEnd = timeSlots[newEndIndex];
         return checkTimeOverlap(newEventStart, newEventEnd, existingEvent.start, existingEvent.end);
       });
 
@@ -1041,7 +1136,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         id: Date.now(), // New unique ID
         sourceId: event.id,  // Track which planned event this was copied from
         start: timeSlots[newStartIndex],
-        end: timeSlots[newStartIndex + eventDuration + 1 < timeSlots.length ? newStartIndex + eventDuration + 1 : newStartIndex + eventDuration],
+        end: timeSlots[newStartIndex + eventDuration],
       };
 
       updateEventsWithHistory(prev => ({
@@ -1164,6 +1259,27 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     }));
   };
 
+  // This helper function should be placed above the renderEvent function
+  function isButtonOrIcon(element) {
+    // Check the element and all its parents up to 5 levels
+    let current = element;
+    let depth = 0;
+
+    while (current && depth < 5) {
+      if (current.tagName === 'BUTTON' ||
+        current.tagName === 'svg' ||
+        current.tagName === 'path' ||
+        (current.className &&
+          typeof current.className === 'string' &&
+          current.className.includes('color-picker'))) {
+        return true;
+      }
+      current = current.parentElement;
+      depth++;
+    }
+    return false;
+  }
+
   const renderEvent = (event, columnType) => {
     const startIndex = timeSlots.indexOf(event.start);
     const endIndex = timeSlots.indexOf(event.end);
@@ -1178,24 +1294,48 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         data-event-id={event.id}
         className={`absolute left-12 right-2 ${colorOptions[event.colorIndex || 0].class} border rounded cursor-move`}
         style={{ top, height }}
-        onMouseDown={(e) => startEventMove(e, event, columnType)}
-        onTouchStart={(e) => startEventTouchMove(e, event, columnType)}
+        onMouseDown={(e) => {
+          // Check if clicking on a button or icon before starting event move
+          if (isButtonOrIcon(e.target)) {
+            return;
+          }
+          startEventMove(e, event, columnType);
+        }}
+        onTouchStart={(e) => {
+          // Check if touching a button or icon before starting event move
+          if (isButtonOrIcon(e.target)) {
+            return;
+          }
+          startEventTouchMove(e, event, columnType);
+        }}
       >
-        <div
-          className="absolute top-0 left-0 right-0 h-2 cursor-n-resize resize-handle hover:bg-gray-400/20 z-10"
-          onMouseDown={(e) => handleResizeStart(e, event, 'top', columnType)}
-          onTouchStart={(e) => handleTouchResizeStart(e, event, 'top', columnType)}
-        />
+        {!needsCompactStyling && (
+          <div
+            className="absolute top-0 left-0 right-0 h-2 cursor-n-resize resize-handle hover:bg-gray-400/20 z-30"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              handleResizeStart(e, event, 'top', columnType);
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              handleTouchResizeStart(e, event, 'top', columnType);
+            }}
+          />
+        )}
+
         <div className={`absolute inset-0 ${needsCompactStyling ? 'pt+1' : 'pt-0'} pb-0 px-2 event-content`}>
           <div className="relative h-full">
             {renderEventContent(event, columnType)}
-            <div className={`absolute top-0 right-0 flex ${needsCompactStyling ? 'gap-0.5' : 'gap-1'}`}>
+
+            <div className={`absolute top-0 right-0 flex ${needsCompactStyling ? 'gap-0.5 -mt-2' : 'gap-1'}`}>
               {columnType === 'planned' && (
                 <>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      e.preventDefault();
                       duplicateToReality(event);
+                      return false;
                     }}
                     className="text-gray-500 hover:text-gray-700"
                     title="Copy to Reality"
@@ -1205,7 +1345,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      e.preventDefault();
                       moveToStandby(event);
+                      return false;
                     }}
                     className="text-gray-500 hover:text-gray-700"
                     title="Move to Standby"
@@ -1217,7 +1359,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   toggleEventMode(columnType, event.id);
+                  return false;
                 }}
                 className="text-gray-500 hover:text-gray-700"
                 title={event.isCheckboxMode ? "Switch to Text Mode" : "Switch to Checkbox Mode"}
@@ -1228,7 +1372,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     setOpenColorPicker(openColorPicker === event.id ? null : event.id);
+                    return false;
                   }}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -1242,7 +1388,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                         className={`w-full p-2 text-left ${color.class} ${color.hoverClass}`}
                         onClick={(e) => {
                           e.stopPropagation();
+                          e.preventDefault();
                           updateEventColor(columnType, event.id, index);
+                          return false;
                         }}
                       >
                         {color.label}
@@ -1254,7 +1402,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   deleteEvent(columnType, event.id);
+                  return false;
                 }}
                 className="text-red-500 hover:text-red-700"
               >
@@ -1263,10 +1413,17 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             </div>
           </div>
         </div>
+
         <div
-          className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize resize-handle hover:bg-gray-400/20 z-10"
-          onMouseDown={(e) => handleResizeStart(e, event, 'bottom', columnType)}
-          onTouchStart={(e) => handleTouchResizeStart(e, event, 'bottom', columnType)}
+          className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize resize-handle hover:bg-gray-400/20"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            handleResizeStart(e, event, 'bottom', columnType);
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            handleTouchResizeStart(e, event, 'bottom', columnType);
+          }}
         />
       </div>
     );
@@ -1435,20 +1592,31 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       return slotTotalMinutes >= currentTotalMinutes;
     });
 
-    // Function to check if a slot is available
-    const isSlotAvailable = (index) => {
+    // Function to check if a slot range is available
+    const isSlotRangeAvailable = (startIndex) => {
       const plannedEvents = events.planned[selectedDate] || [];
+      const endIndex = startIndex + 2; // 30-minute event (2 slots)
+      
+      // Check if end slot would be out of range
+      if (endIndex >= timeSlots.length) return false;
+      
+      // Get the time slots for the proposed event
+      const proposedStart = timeSlots[startIndex];
+      const proposedEnd = timeSlots[endIndex];
+      
+      // Check if both start and end times are within the displayed range
+      if (!isTimeSlotInRange(proposedStart) || !isTimeSlotInRange(proposedEnd)) return false;
+
+      // Check for overlaps with existing events
       return !plannedEvents.some(event => {
-        const eventStart = timeSlots.indexOf(event.start);
-        const eventEnd = timeSlots.indexOf(event.end);
-        return (index < eventEnd && index >= eventStart);
+        return checkTimeOverlap(proposedStart, proposedEnd, event.start, event.end);
       });
     };
 
     // Look for first available slot
     const findFirstAvailableSlot = (fromIndex) => {
-      for (let i = fromIndex; i < timeSlots.length - 1; i++) {
-        if (isSlotAvailable(i)) {
+      for (let i = fromIndex; i < timeSlots.length - 2; i++) {
+        if (isSlotRangeAvailable(i)) {
           return i;
         }
       }
@@ -1467,8 +1635,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const newEvent = {
         id: Date.now(),
         start: timeSlots[availableSlot],
-        // Create a 30-minute event (spans 2 slots)
-        end: timeSlots[availableSlot + 2 < timeSlots.length ? availableSlot + 2 : availableSlot + 1],
+        end: timeSlots[availableSlot + 2],
         content: standbyEvent.content,
         colorIndex: standbyEvent.colorIndex,
         isCheckboxMode: standbyEvent.isCheckboxMode
