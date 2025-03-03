@@ -92,6 +92,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       if (slotIndex >= 0 && slotIndex < timeSlots.length) {
         setTouchDragStart(timeSlots[slotIndex]);
         setCurrentColumn(column);
+        setTempEventHasOverlap(false);
 
         setTempEvent({
           start: timeSlots[slotIndex],
@@ -199,10 +200,25 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const currentSlotIndex = Math.floor(relativeY / densityConfig[density]);
 
       if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
-        setTempEvent(prev => ({
-          ...prev,
-          end: timeSlots[currentSlotIndex]
-        }));
+        // Check if the new endpoint would create an overlap
+        const newEnd = timeSlots[currentSlotIndex];
+        const endTimeSlot = timeSlots[currentSlotIndex + 1 < timeSlots.length ? 
+                           currentSlotIndex + 1 : 
+                           currentSlotIndex];
+        const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
+          return checkTimeOverlap(tempEvent.start, endTimeSlot, event.start, event.end);
+        });
+        
+        // Set the overlap state for visual feedback
+        setTempEventHasOverlap(hasOverlap && timeSlots.indexOf(newEnd) > timeSlots.indexOf(tempEvent.end));
+        
+        // Only update if there is no overlap or if dragging backward (making the event smaller)
+        if (!hasOverlap || timeSlots.indexOf(newEnd) <= timeSlots.indexOf(tempEvent.end)) {
+          setTempEvent(prev => ({
+            ...prev,
+            end: newEnd
+          }));
+        }
       }
     }
   };
@@ -232,6 +248,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         setTouchDragStart(null);
         setCurrentColumn(null);
         setTempEvent(null);
+        setTempEventHasOverlap(false);
         return;
       }
 
@@ -285,6 +302,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     setTempEvent(null);
     setResizing(null);
     setMovingEvent(null);
+    setTempEventHasOverlap(false);
   };
 
   // Function for touch-based event resizing
@@ -495,6 +513,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const [tempEvent, setTempEvent] = useState(null);
   const [movingEvent, setMovingEvent] = useState(null);
   const [openColorPicker, setOpenColorPicker] = useState(null);
+  const [tempEventHasOverlap, setTempEventHasOverlap] = useState(false);
   const timeGridRef = useRef(null);
 
   useEffect(() => {
@@ -621,6 +640,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       setIsDragging(true);
       setDragStart(timeSlots[slotIndex]);
       setCurrentColumn(column);
+      setTempEventHasOverlap(false);
 
       setTempEvent({
         start: timeSlots[slotIndex],
@@ -652,10 +672,25 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
       if (isDragging && tempEvent) {
-        setTempEvent(prev => ({
-          ...prev,
-          end: timeSlots[currentSlotIndex]
-        }));
+        // Check if the new endpoint would create an overlap
+        const newEnd = timeSlots[currentSlotIndex];
+        const endTimeSlot = timeSlots[currentSlotIndex + 1 < timeSlots.length ? 
+                           currentSlotIndex + 1 : 
+                           currentSlotIndex];
+        const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
+          return checkTimeOverlap(tempEvent.start, endTimeSlot, event.start, event.end);
+        });
+        
+        // Set the overlap state for visual feedback
+        setTempEventHasOverlap(hasOverlap && timeSlots.indexOf(newEnd) > timeSlots.indexOf(tempEvent.end));
+        
+        // Only update if there is no overlap or if dragging backward (making the event smaller)
+        if (!hasOverlap || timeSlots.indexOf(newEnd) <= timeSlots.indexOf(tempEvent.end)) {
+          setTempEvent(prev => ({
+            ...prev,
+            end: newEnd
+          }));
+        }
       } else if (resizing) {
         const { event, edge, columnType } = resizing;
         const newStart = edge === 'top' ? timeSlots[currentSlotIndex] : event.start;
@@ -723,6 +758,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         setDragStart(null);
         setCurrentColumn(null);
         setTempEvent(null);
+        setTempEventHasOverlap(false);
         return;
       }
 
@@ -774,6 +810,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     setTempEvent(null);
     setResizing(null);
     setMovingEvent(null);
+    setTempEventHasOverlap(false);
   };
 
   const handleResizeStart = (e, event, edge, columnType) => {
@@ -1285,12 +1322,20 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         {/* Temporary event while dragging */}
         {tempEvent && tempEvent.column === columnType && (
           <div
-            className={`absolute left-12 right-2 ${colorOptions[lastColorIndex].class} border rounded opacity-50`}
+            className={`absolute left-12 right-2 ${colorOptions[lastColorIndex].class} border rounded opacity-50 ${tempEventHasOverlap ? 'border-red-500 border-2' : ''}`}
             style={{
               top: `${timeSlots.indexOf(tempEvent.start) * densityConfig[density]}px`,
               height: `${(timeSlots.indexOf(tempEvent.end) - timeSlots.indexOf(tempEvent.start) + 1) * densityConfig[density]}px`
             }}
-          />
+          >
+            {tempEventHasOverlap && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-red-500 font-bold text-sm bg-white bg-opacity-75 px-1 py-0.5 rounded">
+                  Overlap!
+                </span>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
