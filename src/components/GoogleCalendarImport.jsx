@@ -154,9 +154,13 @@ const GoogleCalendarImport = ({ selectedDate, updateEventsWithHistory, timeSlots
 
   // Find the closest time slot to a given time
   const findClosestTimeSlot = (hours, minutes) => {
-    // Normalize to 30-minute intervals
-    if (minutes >= 30) {
+    // Normalize to 15-minute intervals
+    if (minutes >= 45) {
+      minutes = 45;
+    } else if (minutes >= 30) {
       minutes = 30;
+    } else if (minutes >= 15) {
+      minutes = 15;
     } else {
       minutes = 0;
     }

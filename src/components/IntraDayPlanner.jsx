@@ -67,6 +67,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   const [touchStartPosition, setTouchStartPosition] = useState(null);
   const [touchDragStart, setTouchDragStart] = useState(null);
   const [touchStartTime, setTouchStartTime] = useState(null);
+  const [showDensityPrompt, setShowDensityPrompt] = useState(false);
+  const [hasShown15MinPrompt, setHasShown15MinPrompt] = useState({});
   const LONG_PRESS_DURATION = 500; // milliseconds
 
   // Add these functions to handle touch events
@@ -94,9 +96,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         setCurrentColumn(column);
         setTempEventHasOverlap(false);
 
+        // Calculate the end slot for a 30-minute (2-slot) event by default
+        const endSlotIndex = Math.min(slotIndex + 1, timeSlots.length - 1);
+
         setTempEvent({
           start: timeSlots[slotIndex],
-          end: timeSlots[slotIndex],
+          end: timeSlots[endSlotIndex],
           column
         });
       }
@@ -162,7 +167,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
       if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
         const { event, offsetY } = movingEvent;
-        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start) - 1;
+        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
         const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
         const newEndIndex = newStartIndex + eventDuration;
 
@@ -202,16 +207,16 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       if (currentSlotIndex >= 0 && currentSlotIndex < timeSlots.length) {
         // Check if the new endpoint would create an overlap
         const newEnd = timeSlots[currentSlotIndex];
-        const endTimeSlot = timeSlots[currentSlotIndex + 1 < timeSlots.length ? 
-                           currentSlotIndex + 1 : 
-                           currentSlotIndex];
+        const endTimeSlot = timeSlots[currentSlotIndex + 1 < timeSlots.length ?
+          currentSlotIndex + 1 :
+          currentSlotIndex];
         const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
           return checkTimeOverlap(tempEvent.start, endTimeSlot, event.start, event.end);
         });
-        
+
         // Set the overlap state for visual feedback
         setTempEventHasOverlap(hasOverlap && timeSlots.indexOf(newEnd) > timeSlots.indexOf(tempEvent.end));
-        
+
         // Only update if there is no overlap or if dragging backward (making the event smaller)
         if (!hasOverlap || timeSlots.indexOf(newEnd) <= timeSlots.indexOf(tempEvent.end)) {
           setTempEvent(prev => ({
@@ -277,6 +282,19 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             [selectedDate]: [...(prev[tempEvent.column][selectedDate] || []), newEvent]
           }
         }));
+
+        // Check if this is a 15-minute event and if density is "compact"
+        const startIndex = timeSlots.indexOf(tempEvent.start);
+        const endIndex = timeSlots.indexOf(tempEvent.end);
+        const eventDuration = (endIndex - startIndex + 1) * 15; // Duration in minutes
+        if (eventDuration === 15 && density === 'compact' && !hasShown15MinPrompt[selectedDate]) {
+          setShowDensityPrompt(true);
+          // Mark that we've shown the prompt for this day
+          setHasShown15MinPrompt(prev => ({
+            ...prev,
+            [selectedDate]: true
+          }));
+        }
 
         // Set a timeout to allow the DOM to update before focusing
         setTimeout(() => {
@@ -369,10 +387,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const timeSlots = useMemo(() => {
     const slots = [];
-    const totalSlots = ((endHour - startHour) * 2) + 1; // 30-minute intervals
+    const totalSlots = ((endHour - startHour) * 4) + 1; // 15-minute intervals
 
     for (let i = 0; i < totalSlots; i++) {
-      const totalMinutes = i * 30 + (startHour * 60);
+      const totalMinutes = i * 15 + (startHour * 60);
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;
       // For the last slot, add a special designator
@@ -387,9 +405,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   }, [startHour, endHour]);
 
   const densityConfig = {
-    compact: 30,      // Dense view - 30px per slot
-    comfortable: 45,  // Moderate view - 45px per slot
-    spacious: 60     // Spacious view - 60px per slot
+    compact: 15,      // Dense view - 30px per 30-minute slot
+    comfortable: 22.5,  // Moderate view - 45px per 30-minute slot
+    spacious: 30     // Spacious view - 60px per 30-minute slot
   };
 
   const colorOptions = [
@@ -434,10 +452,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     version: CURRENT_VERSION
   };
 
-  // Function to fix time slots in events (shift by 30 minutes earlier)
+  // Function to fix time slots in events (shift by 15 minutes earlier)
   const migrateEventsTimeSlots = (events, allTimeSlots) => {
     return events.map(event => {
-      // Calculate the correct time slot indices, fixing the 30-minute lag
+      // Calculate the correct time slot indices, fixing the time lag
       // If the event start time is at index 0, we don't want to go negative
       const startIndex = allTimeSlots.indexOf(event.start) <= 0 ? 0 : allTimeSlots.indexOf(event.start) - 1;
 
@@ -605,6 +623,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const minutes = now.getMinutes();
     const totalMinutes = hours * 60 + minutes;
     const top_pixel = 47;
+    // Since we now have 4 slots per hour (15-min each) but display using the same spacing,
+    // we keep the standard density calculation
     const end_pixel = top_pixel + ((timeSlots.length - 1) * densityConfig[density]);
     // Calculate start and end minutes of the day planner
     const startMinutes = startHour * 60;
@@ -642,9 +662,12 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       setCurrentColumn(column);
       setTempEventHasOverlap(false);
 
+      // Calculate the end slot for a 30-minute (2-slot) event by default
+      const endSlotIndex = Math.min(slotIndex + 1, timeSlots.length - 1);
+
       setTempEvent({
         start: timeSlots[slotIndex],
-        end: timeSlots[slotIndex],
+        end: timeSlots[endSlotIndex],
         column
       });
     }
@@ -674,16 +697,16 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       if (isDragging && tempEvent) {
         // Check if the new endpoint would create an overlap
         const newEnd = timeSlots[currentSlotIndex];
-        const endTimeSlot = timeSlots[currentSlotIndex + 1 < timeSlots.length ? 
-                           currentSlotIndex + 1 : 
-                           currentSlotIndex];
+        const endTimeSlot = timeSlots[currentSlotIndex + 1 < timeSlots.length ?
+          currentSlotIndex + 1 :
+          currentSlotIndex];
         const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
           return checkTimeOverlap(tempEvent.start, endTimeSlot, event.start, event.end);
         });
-        
+
         // Set the overlap state for visual feedback
         setTempEventHasOverlap(hasOverlap && timeSlots.indexOf(newEnd) > timeSlots.indexOf(tempEvent.end));
-        
+
         // Only update if there is no overlap or if dragging backward (making the event smaller)
         if (!hasOverlap || timeSlots.indexOf(newEnd) <= timeSlots.indexOf(tempEvent.end)) {
           setTempEvent(prev => ({
@@ -716,7 +739,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         }
       } else if (movingEvent) {
         const { event, offsetY } = movingEvent;
-        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start) - 1;
+        const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
         const newStartIndex = Math.max(0, Math.min(currentSlotIndex - Math.floor(offsetY / densityConfig[density]), timeSlots.length - eventDuration - 1));
         const newEndIndex = newStartIndex + eventDuration;
 
@@ -762,10 +785,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         return;
       }
 
-      // Allow creation of 30-minute events (when start equals end)
+      // Get end slot
       const endTimeSlot = timeSlots[timeSlots.indexOf(tempEvent.end) + 1 < timeSlots.length ?
         timeSlots.indexOf(tempEvent.end) + 1 :
         timeSlots.indexOf(tempEvent.end)];
+
       const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
         return checkTimeOverlap(tempEvent.start, endTimeSlot, event.start, event.end);
       });
@@ -787,6 +811,17 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
             [selectedDate]: [...(prev[tempEvent.column][selectedDate] || []), newEvent]
           }
         }));
+
+        // Check if this is a 15-minute event and if density is "compact"
+        const eventDuration = (endIndex - startIndex + 1) * 15; // Duration in minutes
+        if (eventDuration === 15 && density === 'compact' && !hasShown15MinPrompt[selectedDate]) {
+          setShowDensityPrompt(true);
+          // Mark that we've shown the prompt for this day
+          setHasShown15MinPrompt(prev => ({
+            ...prev,
+            [selectedDate]: true
+          }));
+        }
 
         // Set a timeout to allow the DOM to update before focusing
         setTimeout(() => {
@@ -932,15 +967,20 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   };
 
   const renderEventContent = (event, columnType) => {
+    const startIndex = timeSlots.indexOf(event.start);
+    const endIndex = timeSlots.indexOf(event.end);
+    const is15MinEvent = endIndex - startIndex === 1;
+    const needsCompactStyling = density === 'compact' && is15MinEvent;
     if (event.isCheckboxMode) {
       const tasks = event.content.split('\n').filter(task => task.trim());
       return (
-        <div className="w-full h-full p-1 overflow-y-auto">
+        <div className={`w-full h-full ${needsCompactStyling ? 'p-0.5 pt-0' : 'p-1'} overflow-y-auto`}>
           {tasks.map((task, index) => (
-            <div key={index} className="flex items-start gap-2 mb-0.5 leading-tight">
+            <div key={index} className={`flex items-start ${needsCompactStyling ? 'gap-1 mb-0 text-xs' : 'gap-2 mb-0.5'} leading-tight`}>
+
               <input
                 type="checkbox"
-                className="mt-0.5"
+                className={`${needsCompactStyling ? 'w-3 h-3 mt-0' : 'mt-0.5'}`}
                 checked={task.startsWith('[x]')}
                 onChange={() => {
                   const newTasks = [...tasks];
@@ -953,7 +993,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                 }}
                 onClick={e => e.stopPropagation()}
               />
-              <span className={`${task.startsWith('[x]') ? 'line-through' : ''} leading-tight ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              <span className={`${task.startsWith('[x]') ? 'line-through' : ''} leading-tight ${needsCompactStyling ? 'text-xs truncate' : ''} ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 {task.replace(/^\[[\sx]\]/, '').trim()}
               </span>
             </div>
@@ -964,8 +1004,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     return (
       <textarea
-        className={`w-full h-full resize-none event-content pr-12 px-1 leading-tight ${isDark ? 'bg-transparent text-gray-300 placeholder-gray-500' : 'bg-transparent text-gray-700 placeholder-gray-400'
-          }`}
+        className={`w-full h-full resize-none event-content pr-12 ${needsCompactStyling ? 'px-0.5 text-xs py-0 align-top' : 'px-1'} leading-tight ${isDark ? 'bg-transparent text-gray-300 placeholder-gray-500' : 'bg-transparent text-gray-700 placeholder-gray-400'}`}
         value={event.content}
         onChange={(e) => updateEventContent(columnType, event.id, e.target.value)}
         placeholder="Enter event details..."
@@ -976,7 +1015,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
   const duplicateToReality = (event) => {
     // Find a non-overlapping position for the duplicated event
-    const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start) - 1;
+    const eventDuration = timeSlots.indexOf(event.end) - timeSlots.indexOf(event.start);
     let newStartIndex = timeSlots.indexOf(event.start);
     let found = false;
 
@@ -1130,6 +1169,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     const endIndex = timeSlots.indexOf(event.end);
     const height = `${(endIndex - startIndex) * densityConfig[density]}px`;
     const top = `${startIndex * densityConfig[density]}px`;
+    const is15MinEvent = endIndex - startIndex === 1;
+    const needsCompactStyling = density === 'compact' && is15MinEvent;
 
     return (
       <div
@@ -1145,10 +1186,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
           onMouseDown={(e) => handleResizeStart(e, event, 'top', columnType)}
           onTouchStart={(e) => handleTouchResizeStart(e, event, 'top', columnType)}
         />
-        <div className="absolute inset-0 pt-0 pb-0 px-2 event-content">
+        <div className={`absolute inset-0 ${needsCompactStyling ? 'pt+1' : 'pt-0'} pb-0 px-2 event-content`}>
           <div className="relative h-full">
             {renderEventContent(event, columnType)}
-            <div className="absolute top-0 right-0 flex gap-1">
+            <div className={`absolute top-0 right-0 flex ${needsCompactStyling ? 'gap-0.5' : 'gap-1'}`}>
               {columnType === 'planned' && (
                 <>
                   <button
@@ -1159,7 +1200,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                     className="text-gray-500 hover:text-gray-700"
                     title="Copy to Reality"
                   >
-                    <Copy size={16} />
+                    <Copy size={needsCompactStyling ? 12 : 16} />
                   </button>
                   <button
                     onClick={(e) => {
@@ -1169,7 +1210,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                     className="text-gray-500 hover:text-gray-700"
                     title="Move to Standby"
                   >
-                    <ArrowDown size={16} />
+                    <ArrowDown size={needsCompactStyling ? 12 : 16} />
                   </button>
                 </>
               )}
@@ -1181,7 +1222,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                 className="text-gray-500 hover:text-gray-700"
                 title={event.isCheckboxMode ? "Switch to Text Mode" : "Switch to Checkbox Mode"}
               >
-                {event.isCheckboxMode ? <Type size={16} /> : <CheckSquare size={16} />}
+                {event.isCheckboxMode ? <Type size={needsCompactStyling ? 12 : 16} /> : <CheckSquare size={needsCompactStyling ? 12 : 16} />}
               </button>
               <div className="relative color-picker">
                 <button
@@ -1191,7 +1232,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                   }}
                   className="text-gray-500 hover:text-gray-700"
                 >
-                  <Palette size={16} />
+                  <Palette size={needsCompactStyling ? 12 : 16} />
                 </button>
                 {openColorPicker === event.id && (
                   <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 w-32">
@@ -1217,7 +1258,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                 }}
                 className="text-red-500 hover:text-red-700"
               >
-                <Trash2 size={16} />
+                <Trash2 size={needsCompactStyling ? 12 : 16} />
               </button>
             </div>
           </div>
@@ -1281,39 +1322,48 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       >
         {/* Time labels column - add the last time slot label */}
         <div className="absolute -left-4 top-0 h-full">
-          {/* Display all existing time slots */}
-          {timeSlots.map((time, index) => (
-            <div
-              key={time}
-              style={{ height: `${densityConfig[density]}px` }}
-              className="flex items-center"
-            >
-              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} select-none`} style={{ marginTop: `${density === 'compact' ? -30 : density === 'comfortable' ? -45 : -60}px` }}>
-                {time}
-              </span>
-            </div>
-          ))}
+          {/* Display only time slots at 30-minute intervals */}
+          {timeSlots.map((time, index) => {
+            // Only show time for slots at 0 and 30 minutes (every 2 slots)
+            if (index % 2 === 0) {
+              return (
+                <div
+                  key={time}
+                  style={{ height: `${densityConfig[density]}px` }}
+                  className="flex items-center"
+                >
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} select-none`} style={{ marginTop: `${density === 'compact' ? -15 : density === 'comfortable' ? -23 : -30}px` }}>
+                    {time}
+                  </span>
+                </div>
+              );
+            } else {
+              // Add spacer div for odd indices to maintain proper spacing
+              return <div key={time} style={{ height: `${densityConfig[density]}px` }} />;
+            }
+          })}
 
         </div>
 
-        {/* Grid lines with top border for the first slot */}
         <div className="ml-12">
-          {/* Add a horizontal line at the very top - beginning of first time slot */}
-          <div
-            className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-          />
+          {/* No separate top border element */}
 
-          {/* Regular grid lines */}
-          {/* Regular grid lines - skip the last slot */}
-          {timeSlots.slice(0, -1).map((time, index) => (
-            <div
-              key={time}
-              style={{ height: `${densityConfig[density]}px` }}
-              className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-              onMouseDown={(e) => handleMouseDown(e, time, columnType)}
-              onTouchStart={(e) => handleTouchStart(e, time, columnType)}
-            />
-          ))}
+          {/* Regular grid lines with first one having top border */}
+          {timeSlots.slice(0, -1).map((time, index) => {
+            return (
+              <div
+                key={time}
+                style={{
+                  height: index === 0
+                    ? `${densityConfig[density] * 2}px`
+                    : `${densityConfig[density]}px`
+                }}
+                className={`${index === 0 ? `border-t ` : ''}${index % 2 === 0 ? `border-b ` : ''}${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+                onMouseDown={(e) => handleMouseDown(e, time, columnType)}
+                onTouchStart={(e) => handleTouchStart(e, time, columnType)}
+              />
+            );
+          })}
         </div>
 
         {/* Events */}
@@ -1417,7 +1467,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const newEvent = {
         id: Date.now(),
         start: timeSlots[availableSlot],
-        end: timeSlots[availableSlot + 1 < timeSlots.length ? availableSlot + 1 : availableSlot],
+        // Create a 30-minute event (spans 2 slots)
+        end: timeSlots[availableSlot + 2 < timeSlots.length ? availableSlot + 2 : availableSlot + 1],
         content: standbyEvent.content,
         colorIndex: standbyEvent.colorIndex,
         isCheckboxMode: standbyEvent.isCheckboxMode
@@ -1555,6 +1606,52 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     </div>
   );
 
+  // Density prompt modal
+  const renderDensityPrompt = () => {
+    if (!showDensityPrompt) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className={`p-6 rounded-lg shadow-xl max-w-md w-full ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
+          <h3 className="text-xl font-semibold mb-4">15-minute Event Created</h3>
+          <p className="mb-4">
+            You've created a 15-minute event while using the "compact" density setting.
+            Would you like to increase the density for better visibility of shorter events?
+          </p>
+          <div className="flex flex-wrap gap-3 mt-6">
+            <button
+              onClick={() => {
+                setDensity('comfortable');
+                setShowDensityPrompt(false);
+              }}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Switch to Comfortable
+            </button>
+            <button
+              onClick={() => {
+                setDensity('spacious');
+                setShowDensityPrompt(false);
+              }}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              Switch to Spacious
+            </button>
+            <button
+              onClick={() => setShowDensityPrompt(false)}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Keep Compact
+            </button>
+          </div>
+          <p className="mt-4 text-sm opacity-75">
+            You can always change this setting later in the Settings menu.
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       className={`max-w-6xl mx-auto p-4 shadow-lg rounded-lg ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
@@ -1567,6 +1664,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
     >
+      {renderDensityPrompt()}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
           <img
