@@ -211,7 +211,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
         const eventStart = timeSlots.indexOf(event.start);
         const eventEnd = timeSlots.indexOf(event.end);
-        return (startIndex < eventEnd && endIndex > eventStart);
+        return (startIndex < eventEnd && endIndex >= eventStart);
       });
 
       if (!hasOverlap) {
@@ -700,7 +700,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
         const eventStart = timeSlots.indexOf(event.start);
         const eventEnd = timeSlots.indexOf(event.end);
-        return (startIndex < eventEnd && endIndex > eventStart);
+        return (startIndex < eventEnd && endIndex >= eventStart);
       });
 
       if (!hasOverlap) {
