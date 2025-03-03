@@ -4,6 +4,33 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import DatePicker from './DatePicker';
 import GoogleCalendarImport from './GoogleCalendarImport';
 
+// Utility function to check if two time ranges overlap using direct time comparison
+const checkTimeOverlap = (startTime1, endTime1, startTime2, endTime2) => {
+  // Function to convert time to minutes since midnight
+  const timeToMinutes = (timeStr, period) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    let totalHours = hours;
+    if (period === 'PM' && hours !== 12) totalHours += 12;
+    if (period === 'AM' && hours === 12) totalHours = 0;
+    return totalHours * 60 + minutes;
+  };
+
+  // Parse times
+  const [start1Time, start1Period] = startTime1.split(' ');
+  const [end1Time, end1Period] = endTime1.split(' ');
+  const [start2Time, start2Period] = startTime2.split(' ');
+  const [end2Time, end2Period] = endTime2.split(' ');
+
+  // Convert to minutes
+  const start1Minutes = timeToMinutes(start1Time, start1Period);
+  const end1Minutes = timeToMinutes(end1Time, end1Period);
+  const start2Minutes = timeToMinutes(start2Time, start2Period);
+  const end2Minutes = timeToMinutes(end2Time, end2Period);
+
+  // Time-based overlap check
+  return start1Minutes < end2Minutes && end1Minutes > start2Minutes;
+};
+
 // Add the current version number constant
 const CURRENT_VERSION = 1;
 
@@ -107,7 +134,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
           const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
             if (otherEvent.id === event.id) return false;
-            return (timeSlots.indexOf(newStart) < timeSlots.indexOf(otherEvent.end) && timeSlots.indexOf(newEnd) > timeSlots.indexOf(otherEvent.start));
+            return checkTimeOverlap(newStart, newEnd, otherEvent.start, otherEvent.end);
           });
 
           if (!hasOverlap) {
@@ -140,9 +167,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
         const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
           if (otherEvent.id === event.id) return false;
-          const otherStart = timeSlots.indexOf(otherEvent.start);
-          const otherEnd = timeSlots.indexOf(otherEvent.end) - 1;
-          return (newStartIndex <= otherEnd && newEndIndex >= otherStart);
+          // Use time-based comparison instead of index-based
+          const newEventStart = timeSlots[newStartIndex];
+          const newEventEnd = timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex];
+          return checkTimeOverlap(newEventStart, newEventEnd, otherEvent.start, otherEvent.end);
         });
 
         if (!hasOverlap) {
@@ -208,10 +236,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       }
 
       // Check for overlaps
+      const endTimeSlot = timeSlots[timeSlots.indexOf(tempEvent.end) + 1 < timeSlots.length ?
+        timeSlots.indexOf(tempEvent.end) + 1 :
+        timeSlots.indexOf(tempEvent.end)];
       const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
-        const eventStart = timeSlots.indexOf(event.start);
-        const eventEnd = timeSlots.indexOf(event.end);
-        return (startIndex < eventEnd && endIndex >= eventStart);
+        return checkTimeOverlap(tempEvent.start, endTimeSlot, event.start, event.end);
       });
 
       if (!hasOverlap) {
@@ -635,7 +664,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
         if (timeSlots.indexOf(newStart) <= timeSlots.indexOf(newEnd)) {
           const hasOverlap = getCurrentEvents(columnType).some(otherEvent => {
             if (otherEvent.id === event.id) return false;
-            return (timeSlots.indexOf(newStart) < timeSlots.indexOf(otherEvent.end) && timeSlots.indexOf(newEnd) > timeSlots.indexOf(otherEvent.start));
+            return checkTimeOverlap(newStart, newEnd, otherEvent.start, otherEvent.end);
           });
 
           if (!hasOverlap) {
@@ -658,9 +687,10 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
         const hasOverlap = getCurrentEvents(movingEvent.columnType).some(otherEvent => {
           if (otherEvent.id === event.id) return false;
-          const otherStart = timeSlots.indexOf(otherEvent.start);
-          const otherEnd = timeSlots.indexOf(otherEvent.end) - 1;
-          return (newStartIndex <= otherEnd && newEndIndex >= otherStart);
+          // Use time-based comparison instead of index-based
+          const newEventStart = timeSlots[newStartIndex];
+          const newEventEnd = timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex];
+          return checkTimeOverlap(newEventStart, newEventEnd, otherEvent.start, otherEvent.end);
         });
 
         if (!hasOverlap) {
@@ -697,10 +727,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
       }
 
       // Allow creation of 30-minute events (when start equals end)
+      const endTimeSlot = timeSlots[timeSlots.indexOf(tempEvent.end) + 1 < timeSlots.length ?
+        timeSlots.indexOf(tempEvent.end) + 1 :
+        timeSlots.indexOf(tempEvent.end)];
       const hasOverlap = getCurrentEvents(tempEvent.column).some(event => {
-        const eventStart = timeSlots.indexOf(event.start);
-        const eventEnd = timeSlots.indexOf(event.end);
-        return (startIndex < eventEnd && endIndex >= eventStart);
+        return checkTimeOverlap(tempEvent.start, endTimeSlot, event.start, event.end);
       });
 
       if (!hasOverlap) {
@@ -916,9 +947,9 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     while (!found && newStartIndex < timeSlots.length - eventDuration) {
       const newEndIndex = newStartIndex + eventDuration;
       const hasOverlap = (events.reality[selectedDate] || []).some(existingEvent => {
-        const existingStart = timeSlots.indexOf(existingEvent.start);
-        const existingEnd = timeSlots.indexOf(existingEvent.end);
-        return (newStartIndex < existingEnd && newEndIndex >= existingStart);
+        const newEventStart = timeSlots[newStartIndex];
+        const newEventEnd = timeSlots[newEndIndex + 1 < timeSlots.length ? newEndIndex + 1 : newEndIndex];
+        return checkTimeOverlap(newEventStart, newEventEnd, existingEvent.start, existingEvent.end);
       });
 
       if (!hasOverlap) {

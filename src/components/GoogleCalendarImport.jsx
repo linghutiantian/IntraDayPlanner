@@ -181,13 +181,29 @@ const GoogleCalendarImport = ({ selectedDate, updateEventsWithHistory, timeSlots
 
   // Check if two events overlap
   const eventsOverlap = (event1, event2) => {
-    const start1Index = getTimeSlotIndex(event1.start);
-    const end1Index = getTimeSlotIndex(event1.end);
-    const start2Index = getTimeSlotIndex(event2.start);
-    const end2Index = getTimeSlotIndex(event2.end);
-
-    // Check if one event starts during another event
-    return (start1Index <= end2Index && end1Index >= start2Index);
+    // Function to convert time to minutes since midnight
+    const timeToMinutes = (timeStr, period) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      let totalHours = hours;
+      if (period === 'PM' && hours !== 12) totalHours += 12;
+      if (period === 'AM' && hours === 12) totalHours = 0;
+      return totalHours * 60 + minutes;
+    };
+    
+    // Parse times
+    const [start1Time, start1Period] = event1.start.split(' ');
+    const [end1Time, end1Period] = event1.end.split(' ');
+    const [start2Time, start2Period] = event2.start.split(' ');
+    const [end2Time, end2Period] = event2.end.split(' ');
+    
+    // Convert to minutes
+    const start1Minutes = timeToMinutes(start1Time, start1Period);
+    const end1Minutes = timeToMinutes(end1Time, end1Period);
+    const start2Minutes = timeToMinutes(start2Time, start2Period);
+    const end2Minutes = timeToMinutes(end2Time, end2Period);
+    
+    // Time-based overlap check
+    return start1Minutes < end2Minutes && end1Minutes > start2Minutes;
   };
 
   // Import events from Google Calendar into the day planner
