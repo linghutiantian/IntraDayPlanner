@@ -91,6 +91,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     return saved || 'comfortable'; // Default to 'comfortable'
   });
 
+  const [use24Hour, setUse24Hour] = useState(() => {
+    const saved = localStorage.getItem('dayPlannerTimeFormat');
+    return saved === 'true'; // Default to false (12-hour format)
+  });
+
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return formatDate(today);
@@ -454,7 +459,8 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
     localStorage.setItem('dayPlannerStartHour', startHour.toString());
     localStorage.setItem('dayPlannerEndHour', endHour.toString());
     localStorage.setItem('dayPlannerDensity', density);
-  }, [startHour, endHour, density]);
+    localStorage.setItem('dayPlannerTimeFormat', use24Hour.toString());
+  }, [startHour, endHour, density, use24Hour]);
 
   // Save dark mode preference whenever it changes
   useEffect(() => {
@@ -479,6 +485,26 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
 
     return slots;
   }, [startHour, endHour]);
+
+  // Helper function to format time slot for display
+  const formatTimeSlotForDisplay = (timeSlot) => {
+    if (!use24Hour) return timeSlot;
+
+    // Convert 12-hour format to 24-hour format for display only
+    const [timeStr, period] = timeSlot.split(' ');
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    let hour = hours;
+
+    if (period === 'PM' && hours !== 12) hour += 12;
+    if (period === 'AM' && hours === 12) hour = 0;
+
+    // Handle special case for the last slot
+    if (timeSlot.includes('[END]')) {
+      return `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} [END]`;
+    }
+
+    return `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  };
 
   const densityConfig = {
     compact: 15,      // Dense view - 30px per 30-minute slot
@@ -686,6 +712,13 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
   }, []);
 
   const formatTimeForDisplay = (date) => {
+    if (use24Hour) {
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    }
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -1523,7 +1556,7 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                   className="flex items-center"
                 >
                   <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} select-none`} style={{ marginTop: `${density === 'compact' ? -15 : density === 'comfortable' ? -23 : -30}px` }}>
-                    {time}
+                    {formatTimeSlotForDisplay(time)}
                   </span>
                 </div>
               );
@@ -1919,7 +1952,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                       className={`p-1 rounded text-sm ${isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'} border`}
                     >
                       {Array.from({ length: 24 }, (_, i) => (
-                        <option key={i} value={i}>{i === 12 ? '12:00 PM' : i > 12 ? `${i - 12}:00 PM` : `${i}:00 AM`}</option>
+                        <option key={i} value={i}>
+                          {use24Hour ? 
+                            `${i.toString().padStart(2, '0')}:00` :
+                            i === 12 ? '12:00 PM' : i > 12 ? `${i - 12}:00 PM` : `${i === 0 ? 12 : i}:00 AM`}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1931,7 +1968,11 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                       className={`p-1 rounded text-sm ${isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'} border`}
                     >
                       {Array.from({ length: 25 }, (_, i) => (
-                        <option key={i} value={i}>{i === 12 ? '12:00 PM' : i > 12 && i < 24 ? `${i - 12}:00 PM` : i === 24 ? '12:00 AM' : `${i}:00 AM`}</option>
+                        <option key={i} value={i}>
+                          {use24Hour ?
+                            `${i === 24 ? '00' : i.toString().padStart(2, '0')}:00` :
+                            i === 12 ? '12:00 PM' : i > 12 && i < 24 ? `${i - 12}:00 PM` : i === 24 ? '12:00 AM' : `${i === 0 ? 12 : i}:00 AM`}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1947,6 +1988,20 @@ const IntraDayPlanner = ({ isDark, setIsDark }) => {
                         <option value="compact">Compact</option>
                         <option value="comfortable">Comfortable</option>
                         <option value="spacious">Spacious</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mt-4">
+                    <h3 className="font-medium">Time Format</h3>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm">Display Format:</label>
+                      <select
+                        value={use24Hour.toString()}
+                        onChange={(e) => setUse24Hour(e.target.value === 'true')}
+                        className={`p-1 rounded text-sm ${isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'} border`}
+                      >
+                        <option value="false">12-hour</option>
+                        <option value="true">24-hour</option>
                       </select>
                     </div>
                   </div>
